@@ -1,0 +1,310 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['admin_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$websiteId = $_GET['id'] ?? null;
+$error = '';
+$success = '';
+
+if (!$websiteId) {
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Using absolute path
+$configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
+
+if (!file_exists($configFile)) {
+    die("Configuration file not found at: " . $configFile);
+}
+
+// Load current website data
+$configContent = file_get_contents($configFile);
+$configData = json_decode($configContent, true);
+$websites = $configData['websites'] ?? [];
+
+$website = null;
+foreach ($websites as $site) {
+    if ($site['id'] == $websiteId) {
+        $website = $site;
+        break;
+    }
+}
+
+if (!$website) {
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Get sports list from website config or use default
+$sports = $website['sports_categories'] ?? [
+    'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
+    'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
+    'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
+    'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
+    'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
+    'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
+    'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
+    'Chess', 'E-sports', 'Others'
+];
+
+// Convert to array with name and slug
+$sportsArray = [];
+foreach ($sports as $sportName) {
+    $sportSlug = strtolower(str_replace(' ', '-', $sportName));
+    $sportsArray[] = [
+        'name' => $sportName,
+        'slug' => $sportSlug
+    ];
+}
+
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Find and update website
+    $updated = false;
+    foreach ($websites as $key => $site) {
+        if ($site['id'] == $websiteId) {
+            // Initialize pages_seo if it doesn't exist
+            if (!isset($websites[$key]['pages_seo'])) {
+                $websites[$key]['pages_seo'] = [];
+            }
+            
+            // Update home page SEO
+            $websites[$key]['pages_seo']['home'] = [
+                'title' => trim($_POST['home_title'] ?? ''),
+                'description' => trim($_POST['home_description'] ?? ''),
+                'keywords' => trim($_POST['home_keywords'] ?? '')
+            ];
+            
+            // Update favorites page SEO
+            $websites[$key]['pages_seo']['favorites'] = [
+                'title' => trim($_POST['favorites_title'] ?? ''),
+                'description' => trim($_POST['favorites_description'] ?? ''),
+                'keywords' => trim($_POST['favorites_keywords'] ?? '')
+            ];
+            
+            // Update sports pages SEO
+            if (!isset($websites[$key]['pages_seo']['sports'])) {
+                $websites[$key]['pages_seo']['sports'] = [];
+            }
+            
+            foreach ($sportsArray as $sport) {
+                $slug = $sport['slug'];
+                $websites[$key]['pages_seo']['sports'][$slug] = [
+                    'title' => trim($_POST['sport_title_' . $slug] ?? ''),
+                    'description' => trim($_POST['sport_description_' . $slug] ?? ''),
+                    'keywords' => trim($_POST['sport_keywords_' . $slug] ?? '')
+                ];
+            }
+            
+            $updated = true;
+            break;
+        }
+    }
+    
+    if ($updated) {
+        $configData['websites'] = $websites;
+        
+        // Save to JSON with pretty print
+        $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        
+        if (file_put_contents($configFile, $jsonContent)) {
+            $success = 'SEO settings updated successfully for all ' . count($sportsArray) . ' sports pages!';
+        } else {
+            $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
+        }
+    } else {
+        $error = 'Website not found';
+    }
+}
+
+// Get current SEO settings or set defaults
+$pagesSeo = $website['pages_seo'] ?? [];
+$homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => '', 'keywords' => ''];
+$favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => '', 'keywords' => ''];
+$sportsSeo = $pagesSeo['sports'] ?? [];
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage SEO - <?php echo htmlspecialchars($website['site_name']); ?></title>
+    <link rel="stylesheet" href="cms-style.css">
+    <style>
+        .page-seo-section {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #fff;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        .page-seo-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        .sport-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .sport-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .sport-card h4 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        .sports-count-info {
+            background: #e8f5e9;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #2e7d32;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="cms-layout">
+        <aside class="cms-sidebar">
+            <div class="cms-logo">
+                <h2>🎯 CMS</h2>
+            </div>
+            
+            <nav class="cms-nav">
+                <a href="dashboard.php" class="nav-item">
+                    <span>🏠</span> Dashboard
+                </a>
+                <a href="website-add.php" class="nav-item">
+                    <span>➕</span> Add Website
+                </a>
+            </nav>
+            
+            <div class="cms-user">
+                <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
+            </div>
+        </aside>
+        
+        <main class="cms-main">
+            <header class="cms-header">
+                <h1>Manage SEO: <?php echo htmlspecialchars($website['site_name']); ?></h1>
+                <a href="dashboard.php" class="btn">← Back to Dashboard</a>
+            </header>
+            
+            <div class="cms-content">
+                <?php if ($error): ?>
+                    <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
+                <?php endif; ?>
+                
+                <?php if ($success): ?>
+                    <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+                <?php endif; ?>
+                
+                <form method="POST" class="cms-form">
+                    <!-- Home Page SEO -->
+                    <div class="page-seo-section">
+                        <h3>🏠 Home Page SEO</h3>
+                        
+                        <div class="form-group">
+                            <label for="home_title">SEO Title</label>
+                            <input type="text" id="home_title" name="home_title" value="<?php echo htmlspecialchars($homeSeo['title']); ?>" placeholder="Home - <?php echo htmlspecialchars($website['site_name']); ?>">
+                            <small>Recommended: 50-60 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="home_description">SEO Description</label>
+                            <textarea id="home_description" name="home_description" rows="3" placeholder="Watch live sports streaming online..."><?php echo htmlspecialchars($homeSeo['description']); ?></textarea>
+                            <small>Recommended: 150-160 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="home_keywords">SEO Keywords</label>
+                            <textarea id="home_keywords" name="home_keywords" rows="2" placeholder="live sports, sports streaming, watch online"><?php echo htmlspecialchars($homeSeo['keywords']); ?></textarea>
+                            <small>Comma-separated keywords</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Favorites Page SEO -->
+                    <div class="page-seo-section">
+                        <h3>⭐ Favorites Page SEO</h3>
+                        
+                        <div class="form-group">
+                            <label for="favorites_title">SEO Title</label>
+                            <input type="text" id="favorites_title" name="favorites_title" value="<?php echo htmlspecialchars($favoritesSeo['title']); ?>" placeholder="My Favorites - <?php echo htmlspecialchars($website['site_name']); ?>">
+                            <small>Recommended: 50-60 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="favorites_description">SEO Description</label>
+                            <textarea id="favorites_description" name="favorites_description" rows="3" placeholder="Your favorite sports games and streams..."><?php echo htmlspecialchars($favoritesSeo['description']); ?></textarea>
+                            <small>Recommended: 150-160 characters</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="favorites_keywords">SEO Keywords</label>
+                            <textarea id="favorites_keywords" name="favorites_keywords" rows="2" placeholder="favorite sports, saved games, my streams"><?php echo htmlspecialchars($favoritesSeo['keywords']); ?></textarea>
+                            <small>Comma-separated keywords</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Sports Pages SEO -->
+                    <div class="page-seo-section">
+                        <h3>⚽ Sports Pages SEO</h3>
+                        <p style="color: #666; margin-bottom: 10px;">Configure SEO for each sport category page (e.g., /live-football, /live-basketball)</p>
+                        
+                        <div class="sports-count-info">
+                            <span>✅ Found <?php echo count($sportsArray); ?> sports categories</span>
+                            <a href="website-sports.php?id=<?php echo $websiteId; ?>" class="btn btn-sm" style="background: #3498db; color: white;">Manage Sports Categories</a>
+                        </div>
+                        
+                        <div class="sport-grid">
+                            <?php foreach ($sportsArray as $sport): 
+                                $slug = $sport['slug'];
+                                $sportSeo = $sportsSeo[$slug] ?? ['title' => '', 'description' => '', 'keywords' => ''];
+                            ?>
+                                <div class="sport-card">
+                                    <h4><?php echo htmlspecialchars($sport['name']); ?></h4>
+                                    
+                                    <div class="form-group">
+                                        <label for="sport_title_<?php echo $slug; ?>">Title</label>
+                                        <input type="text" id="sport_title_<?php echo $slug; ?>" name="sport_title_<?php echo $slug; ?>" value="<?php echo htmlspecialchars($sportSeo['title']); ?>" placeholder="Live <?php echo htmlspecialchars($sport['name']); ?> - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="sport_description_<?php echo $slug; ?>">Description</label>
+                                        <textarea id="sport_description_<?php echo $slug; ?>" name="sport_description_<?php echo $slug; ?>" rows="3" placeholder="Watch <?php echo htmlspecialchars($sport['name']); ?> live streams..."><?php echo htmlspecialchars($sportSeo['description']); ?></textarea>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="sport_keywords_<?php echo $slug; ?>">Keywords</label>
+                                        <textarea id="sport_keywords_<?php echo $slug; ?>" name="sport_keywords_<?php echo $slug; ?>" rows="2" placeholder="<?php echo strtolower($sport['name']); ?> streaming, live <?php echo strtolower($sport['name']); ?>"><?php echo htmlspecialchars($sportSeo['keywords']); ?></textarea>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Save All SEO Settings (<?php echo count($sportsArray); ?> Sports)</button>
+                        <a href="dashboard.php" class="btn btn-outline">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

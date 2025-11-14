@@ -48,6 +48,13 @@ if (isset($_SESSION['delete_success'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CMS Dashboard</title>
     <link rel="stylesheet" href="cms-style.css">
+    <style>
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -152,8 +159,12 @@ if (isset($_SESSION['delete_success'])) {
                                                 </span>
                                             </td>
                                             <td>
-                                                <a href="website-edit.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Edit</a>
-                                                <a href="website-delete.php?id=<?php echo $website['id']; ?>" class="btn btn-sm btn-danger">Delete</a>
+                                                <div class="action-buttons">
+                                                    <a href="website-edit.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Edit</a>
+                                                    <a href="website-sports.php?id=<?php echo $website['id']; ?>" class="btn btn-sm" style="background: #27ae60; color: white;">Sports</a>
+                                                    <a href="website-seo.php?id=<?php echo $website['id']; ?>" class="btn btn-sm" style="background: #3498db; color: white;">SEO</a>
+                                                    <a href="website-delete.php?id=<?php echo $website['id']; ?>" class="btn btn-sm btn-danger">Delete</a>
+                                                </div>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

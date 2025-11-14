@@ -56,6 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $newId = $maxId + 1;
             
+            // Default sports list
+            $defaultSports = [
+                'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
+                'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
+                'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
+                'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
+                'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
+                'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
+                'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
+                'Chess', 'E-sports', 'Others'
+            ];
+            
             // Add new website
             $newWebsite = [
                 'id' => $newId,
@@ -69,7 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'seo_keywords' => $seoKeywords,
                 'language' => $language,
                 'sidebar_content' => $sidebarContent,
-                'status' => $status
+                'status' => $status,
+                'sports_categories' => $defaultSports
             ];
             
             $websites[] = $newWebsite;
@@ -79,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             
             if (file_put_contents($configFile, $jsonContent)) {
-                $success = 'Website added successfully!';
+                $success = 'Website added successfully with 48 default sports!';
                 // Clear form
                 $_POST = [];
             } else {
@@ -238,6 +251,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <textarea id="sidebar_content" name="sidebar_content" rows="8"><?php echo htmlspecialchars($_POST['sidebar_content'] ?? '<h3>About</h3><p>Add your content here...</p>'); ?></textarea>
                             <small>You can use HTML tags here</small>
                         </div>
+                    </div>
+                    
+                    <!-- Sports Info -->
+                    <div class="form-section" style="background: #e8f5e9;">
+                        <h3>Sports Categories</h3>
+                        <p style="color: #2e7d32;">✅ Your new website will include 48 default sport categories (Football, Basketball, Tennis, etc.)</p>
+                        <p style="color: #666; font-size: 14px;">You can manage sports after creating the website</p>
                     </div>
                     
                     <div class="form-actions">
