@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
     $seoTitle = trim($_POST['seo_title'] ?? '');
     $seoDescription = trim($_POST['seo_description'] ?? '');
-    $seoKeywords = trim($_POST['seo_keywords'] ?? '');
     $language = trim($_POST['language'] ?? 'en');
     $sidebarContent = trim($_POST['sidebar_content'] ?? '');
     $status = $_POST['status'] ?? 'active';
@@ -78,7 +77,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'secondary_color' => $secondaryColor,
                 'seo_title' => $seoTitle,
                 'seo_description' => $seoDescription,
-                'seo_keywords' => $seoKeywords,
                 'language' => $language,
                 'sidebar_content' => $sidebarContent,
                 'status' => $status,
@@ -221,35 +219,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     <!-- SEO Settings -->
                     <div class="form-section">
-                        <h3>SEO Settings</h3>
+                        <h3>Default SEO Settings</h3>
+                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">These are fallback SEO settings. You can customize SEO for each page after creating the website.</p>
                         
                         <div class="form-group">
-                            <label for="seo_title">SEO Title *</label>
+                            <label for="seo_title">Default SEO Title *</label>
                             <input type="text" id="seo_title" name="seo_title" value="<?php echo htmlspecialchars($_POST['seo_title'] ?? ''); ?>" required>
                             <small>Recommended: 50-60 characters</small>
                         </div>
                         
                         <div class="form-group">
-                            <label for="seo_description">SEO Description</label>
+                            <label for="seo_description">Default SEO Description</label>
                             <textarea id="seo_description" name="seo_description" rows="3"><?php echo htmlspecialchars($_POST['seo_description'] ?? ''); ?></textarea>
                             <small>Recommended: 150-160 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="seo_keywords">SEO Keywords</label>
-                            <textarea id="seo_keywords" name="seo_keywords" rows="2"><?php echo htmlspecialchars($_POST['seo_keywords'] ?? ''); ?></textarea>
-                            <small>Comma-separated keywords</small>
                         </div>
                     </div>
                     
                     <!-- Sidebar Content -->
                     <div class="form-section">
-                        <h3>Sidebar Content</h3>
+                        <h3>Right Sidebar Content</h3>
                         
                         <div class="form-group">
-                            <label for="sidebar_content">Right Sidebar HTML</label>
-                            <textarea id="sidebar_content" name="sidebar_content" rows="8"><?php echo htmlspecialchars($_POST['sidebar_content'] ?? '<h3>About</h3><p>Add your content here...</p>'); ?></textarea>
-                            <small>You can use HTML tags here</small>
+                            <label for="sidebar_content">Sidebar HTML</label>
+                            <textarea id="sidebar_content" name="sidebar_content" rows="8"><?php echo htmlspecialchars($_POST['sidebar_content'] ?? '<h2>About</h2><p>Add your content here...</p>'); ?></textarea>
+                            <small>You can use HTML tags here (visible on desktop only)</small>
                         </div>
                     </div>
                     
@@ -257,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-section" style="background: #e8f5e9;">
                         <h3>Sports Categories</h3>
                         <p style="color: #2e7d32;">✅ Your new website will include 48 default sport categories (Football, Basketball, Tennis, etc.)</p>
-                        <p style="color: #666; font-size: 14px;">You can manage sports after creating the website</p>
+                        <p style="color: #666; font-size: 14px;">You can manage and reorder sports after creating the website</p>
                     </div>
                     
                     <div class="form-actions">

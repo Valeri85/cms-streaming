@@ -33,32 +33,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logo = trim($_POST['logo'] ?? '🍋');
     $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
     $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
-    $seoTitle = trim($_POST['seo_title'] ?? '');
-    $seoDescription = trim($_POST['seo_description'] ?? '');
-    $seoKeywords = trim($_POST['seo_keywords'] ?? '');
     $language = trim($_POST['language'] ?? 'en');
-    $sidebarContent = trim($_POST['sidebar_content'] ?? '');
     $status = $_POST['status'] ?? 'active';
     
-    if ($siteName && $domain && $seoTitle) {
+    if ($siteName && $domain) {
         // Find and update website
         $updated = false;
         foreach ($websites as $key => $website) {
             if ($website['id'] == $websiteId) {
-                $websites[$key] = [
-                    'id' => (int)$websiteId,
-                    'domain' => $domain,
-                    'site_name' => $siteName,
-                    'logo' => $logo,
-                    'primary_color' => $primaryColor,
-                    'secondary_color' => $secondaryColor,
-                    'seo_title' => $seoTitle,
-                    'seo_description' => $seoDescription,
-                    'seo_keywords' => $seoKeywords,
-                    'language' => $language,
-                    'sidebar_content' => $sidebarContent,
-                    'status' => $status
-                ];
+                // Keep existing SEO and sidebar data
+                $websites[$key]['domain'] = $domain;
+                $websites[$key]['site_name'] = $siteName;
+                $websites[$key]['logo'] = $logo;
+                $websites[$key]['primary_color'] = $primaryColor;
+                $websites[$key]['secondary_color'] = $secondaryColor;
+                $websites[$key]['language'] = $language;
+                $websites[$key]['status'] = $status;
                 $updated = true;
                 break;
             }
@@ -71,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             
             if (file_put_contents($configFile, $jsonContent)) {
-                $success = 'Website updated successfully! Check your website to see changes.';
+                $success = 'Website updated successfully!';
             } else {
                 $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
             }
@@ -209,40 +199,6 @@ if (!$website) {
                                     <input type="text" value="<?php echo htmlspecialchars($website['secondary_color']); ?>" readonly>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    
-                    <!-- SEO Settings -->
-                    <div class="form-section">
-                        <h3>SEO Settings</h3>
-                        
-                        <div class="form-group">
-                            <label for="seo_title">SEO Title *</label>
-                            <input type="text" id="seo_title" name="seo_title" value="<?php echo htmlspecialchars($website['seo_title']); ?>" required>
-                            <small>Recommended: 50-60 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="seo_description">SEO Description</label>
-                            <textarea id="seo_description" name="seo_description" rows="3"><?php echo htmlspecialchars($website['seo_description']); ?></textarea>
-                            <small>Recommended: 150-160 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="seo_keywords">SEO Keywords</label>
-                            <textarea id="seo_keywords" name="seo_keywords" rows="2"><?php echo htmlspecialchars($website['seo_keywords']); ?></textarea>
-                            <small>Comma-separated keywords</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Sidebar Content -->
-                    <div class="form-section">
-                        <h3>Sidebar Content</h3>
-                        
-                        <div class="form-group">
-                            <label for="sidebar_content">Right Sidebar HTML</label>
-                            <textarea id="sidebar_content" name="sidebar_content" rows="8"><?php echo htmlspecialchars($website['sidebar_content']); ?></textarea>
-                            <small>You can use HTML tags here</small>
                         </div>
                     </div>
                     

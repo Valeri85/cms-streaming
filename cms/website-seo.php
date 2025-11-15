@@ -40,17 +40,8 @@ if (!$website) {
     exit;
 }
 
-// Get sports list from website config or use default
-$sports = $website['sports_categories'] ?? [
-    'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
-    'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
-    'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
-    'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
-    'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
-    'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
-    'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
-    'Chess', 'E-sports', 'Others'
-];
+// Get sports list from website config
+$sports = $website['sports_categories'] ?? [];
 
 // Convert to array with name and slug
 $sportsArray = [];
@@ -76,15 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Update home page SEO
             $websites[$key]['pages_seo']['home'] = [
                 'title' => trim($_POST['home_title'] ?? ''),
-                'description' => trim($_POST['home_description'] ?? ''),
-                'keywords' => trim($_POST['home_keywords'] ?? '')
+                'description' => trim($_POST['home_description'] ?? '')
             ];
             
             // Update favorites page SEO
             $websites[$key]['pages_seo']['favorites'] = [
                 'title' => trim($_POST['favorites_title'] ?? ''),
-                'description' => trim($_POST['favorites_description'] ?? ''),
-                'keywords' => trim($_POST['favorites_keywords'] ?? '')
+                'description' => trim($_POST['favorites_description'] ?? '')
             ];
             
             // Update sports pages SEO
@@ -96,8 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $slug = $sport['slug'];
                 $websites[$key]['pages_seo']['sports'][$slug] = [
                     'title' => trim($_POST['sport_title_' . $slug] ?? ''),
-                    'description' => trim($_POST['sport_description_' . $slug] ?? ''),
-                    'keywords' => trim($_POST['sport_keywords_' . $slug] ?? '')
+                    'description' => trim($_POST['sport_description_' . $slug] ?? '')
                 ];
             }
             
@@ -124,8 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get current SEO settings or set defaults
 $pagesSeo = $website['pages_seo'] ?? [];
-$homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => '', 'keywords' => ''];
-$favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => '', 'keywords' => ''];
+$homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => ''];
+$favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => ''];
 $sportsSeo = $pagesSeo['sports'] ?? [];
 ?>
 <!DOCTYPE html>
@@ -230,12 +218,6 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                             <textarea id="home_description" name="home_description" rows="3" placeholder="Watch live sports streaming online..."><?php echo htmlspecialchars($homeSeo['description']); ?></textarea>
                             <small>Recommended: 150-160 characters</small>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="home_keywords">SEO Keywords</label>
-                            <textarea id="home_keywords" name="home_keywords" rows="2" placeholder="live sports, sports streaming, watch online"><?php echo htmlspecialchars($homeSeo['keywords']); ?></textarea>
-                            <small>Comma-separated keywords</small>
-                        </div>
                     </div>
                     
                     <!-- Favorites Page SEO -->
@@ -253,12 +235,6 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                             <textarea id="favorites_description" name="favorites_description" rows="3" placeholder="Your favorite sports games and streams..."><?php echo htmlspecialchars($favoritesSeo['description']); ?></textarea>
                             <small>Recommended: 150-160 characters</small>
                         </div>
-                        
-                        <div class="form-group">
-                            <label for="favorites_keywords">SEO Keywords</label>
-                            <textarea id="favorites_keywords" name="favorites_keywords" rows="2" placeholder="favorite sports, saved games, my streams"><?php echo htmlspecialchars($favoritesSeo['keywords']); ?></textarea>
-                            <small>Comma-separated keywords</small>
-                        </div>
                     </div>
                     
                     <!-- Sports Pages SEO -->
@@ -274,7 +250,7 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                         <div class="sport-grid">
                             <?php foreach ($sportsArray as $sport): 
                                 $slug = $sport['slug'];
-                                $sportSeo = $sportsSeo[$slug] ?? ['title' => '', 'description' => '', 'keywords' => ''];
+                                $sportSeo = $sportsSeo[$slug] ?? ['title' => '', 'description' => ''];
                             ?>
                                 <div class="sport-card">
                                     <h4><?php echo htmlspecialchars($sport['name']); ?></h4>
@@ -287,11 +263,6 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                                     <div class="form-group">
                                         <label for="sport_description_<?php echo $slug; ?>">Description</label>
                                         <textarea id="sport_description_<?php echo $slug; ?>" name="sport_description_<?php echo $slug; ?>" rows="3" placeholder="Watch <?php echo htmlspecialchars($sport['name']); ?> live streams..."><?php echo htmlspecialchars($sportSeo['description']); ?></textarea>
-                                    </div>
-                                    
-                                    <div class="form-group">
-                                        <label for="sport_keywords_<?php echo $slug; ?>">Keywords</label>
-                                        <textarea id="sport_keywords_<?php echo $slug; ?>" name="sport_keywords_<?php echo $slug; ?>" rows="2" placeholder="<?php echo strtolower($sport['name']); ?> streaming, live <?php echo strtolower($sport['name']); ?>"><?php echo htmlspecialchars($sportSeo['keywords']); ?></textarea>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
