@@ -17,9 +17,15 @@ if (!$websiteId) {
 
 // Using absolute path
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
+$uploadDir = '/var/www/u1852176/data/www/streaming/images/sports/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
+}
+
+// Create upload directory if it doesn't exist
+if (!file_exists($uploadDir)) {
+    mkdir($uploadDir, 0755, true);
 }
 
 // Function to send Slack notification
@@ -59,6 +65,109 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
+// Function to handle image upload
+function handleImageUpload($file, $uploadDir) {
+    $allowedTypes = ['image/png', 'image/webp', 'image/svg+xml', 'image/avif'];
+    $allowedExtensions = ['png', 'webp', 'svg', 'avif'];
+    
+    // Check if file was uploaded
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['error' => 'No file uploaded'];
+    }
+    
+    // Check file type
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['error' => 'Invalid file type. Only PNG, WEBP, SVG, AVIF allowed'];
+    }
+    
+    // Get file extension
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        return ['error' => 'Invalid file extension'];
+    }
+    
+    // Generate unique filename
+    $filename = uniqid('sport_', true) . '.' . $extension;
+    $filepath = $uploadDir . $filename;
+    
+    // For raster images (PNG, WEBP, AVIF), resize to 64x64
+    if (in_array($extension, ['png', 'webp', 'avif'])) {
+        if (!extension_loaded('gd')) {
+            return ['error' => 'GD extension not available for image processing'];
+        }
+        
+        // Load image based on type
+        switch ($extension) {
+            case 'png':
+                $sourceImage = @imagecreatefrompng($file['tmp_name']);
+                break;
+            case 'webp':
+                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+                break;
+            case 'avif':
+                // AVIF support requires PHP 8.1+ and libavif
+                if (function_exists('imagecreatefromavif')) {
+                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
+                } else {
+                    return ['error' => 'AVIF format not supported on this server'];
+                }
+                break;
+        }
+        
+        if (!$sourceImage) {
+            return ['error' => 'Failed to process image'];
+        }
+        
+        // Create 64x64 thumbnail
+        $targetImage = imagecreatetruecolor(64, 64);
+        
+        // Preserve transparency for PNG/WEBP
+        if ($extension === 'png' || $extension === 'webp') {
+            imagealphablending($targetImage, false);
+            imagesavealpha($targetImage, true);
+            $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+            imagefill($targetImage, 0, 0, $transparent);
+        }
+        
+        // Resize
+        imagecopyresampled(
+            $targetImage, $sourceImage,
+            0, 0, 0, 0,
+            64, 64,
+            imagesx($sourceImage), imagesy($sourceImage)
+        );
+        
+        // Save resized image
+        switch ($extension) {
+            case 'png':
+                imagepng($targetImage, $filepath, 9);
+                break;
+            case 'webp':
+                imagewebp($targetImage, $filepath, 90);
+                break;
+            case 'avif':
+                if (function_exists('imageavif')) {
+                    imageavif($targetImage, $filepath, 90);
+                }
+                break;
+        }
+        
+        imagedestroy($sourceImage);
+        imagedestroy($targetImage);
+    } else {
+        // For SVG, just copy the file
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            return ['error' => 'Failed to save file'];
+        }
+    }
+    
+    return ['success' => true, 'filename' => $filename];
+}
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $configContent = file_get_contents($configFile);
@@ -88,23 +197,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Handle Add Sport
         if (isset($_POST['add_sport'])) {
             $newSport = trim($_POST['new_sport_name'] ?? '');
-            $newIcon = trim($_POST['new_sport_icon'] ?? '');
             
             if ($newSport) {
                 if (!in_array($newSport, $websites[$websiteIndex]['sports_categories'])) {
                     $websites[$websiteIndex]['sports_categories'][] = $newSport;
                     
-                    // Add icon if provided
-                    if ($newIcon) {
-                        $websites[$websiteIndex]['sports_icons'][$newSport] = $newIcon;
+                    // Handle icon upload
+                    if (isset($_FILES['new_sport_icon']) && $_FILES['new_sport_icon']['size'] > 0) {
+                        $uploadResult = handleImageUpload($_FILES['new_sport_icon'], $uploadDir);
+                        if (isset($uploadResult['success'])) {
+                            $websites[$websiteIndex]['sports_icons'][$newSport] = $uploadResult['filename'];
+                        } else {
+                            $error = $uploadResult['error'];
+                        }
                     }
                     
-                    // Send Slack notification
-                    $slackSent = sendSlackNotification($newSport);
-                    
-                    $success = "Sport category '{$newSport}' added successfully!";
-                    if ($slackSent !== false) {
-                        $success .= " Slack notification sent.";
+                    if (!$error) {
+                        // Send Slack notification
+                        $slackSent = sendSlackNotification($newSport);
+                        
+                        $success = "Sport category '{$newSport}' added successfully!";
+                        if ($slackSent !== false) {
+                            $success .= " Slack notification sent.";
+                        }
                     }
                 } else {
                     $error = "Sport category '{$newSport}' already exists!";
@@ -114,22 +229,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Handle Edit Icon
+        // Handle Edit Icon (with upload)
         if (isset($_POST['edit_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
-            $newIcon = trim($_POST['sport_icon'] ?? '');
             
             if ($sportName) {
-                if ($newIcon) {
-                    $websites[$websiteIndex]['sports_icons'][$sportName] = $newIcon;
-                    $success = "Icon updated for '{$sportName}'";
-                } else {
-                    // Remove icon if empty
-                    if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
-                        unset($websites[$websiteIndex]['sports_icons'][$sportName]);
+                // Check if new file uploaded
+                if (isset($_FILES['sport_icon_file']) && $_FILES['sport_icon_file']['size'] > 0) {
+                    $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir);
+                    if (isset($uploadResult['success'])) {
+                        // Delete old icon if exists
+                        if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
+                            $oldFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
+                            if (file_exists($oldFile)) {
+                                unlink($oldFile);
+                            }
+                        }
+                        
+                        $websites[$websiteIndex]['sports_icons'][$sportName] = $uploadResult['filename'];
+                        $success = "Icon updated for '{$sportName}'";
+                    } else {
+                        $error = $uploadResult['error'];
                     }
-                    $success = "Icon removed for '{$sportName}'";
                 }
+            }
+        }
+        
+        // Handle Delete Icon
+        if (isset($_POST['delete_icon'])) {
+            $sportName = $_POST['sport_name'] ?? '';
+            
+            if ($sportName && isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
+                $iconFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
+                if (file_exists($iconFile)) {
+                    unlink($iconFile);
+                }
+                unset($websites[$websiteIndex]['sports_icons'][$sportName]);
+                $success = "Icon deleted for '{$sportName}'";
             }
         }
         
@@ -168,16 +304,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Handle Delete Sport
         if (isset($_POST['delete_sport'])) {
             $sportToDelete = $_POST['sport_name'] ?? '';
+            
+            // Delete icon file if exists
+            if (isset($websites[$websiteIndex]['sports_icons'][$sportToDelete])) {
+                $iconFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportToDelete];
+                if (file_exists($iconFile)) {
+                    unlink($iconFile);
+                }
+                unset($websites[$websiteIndex]['sports_icons'][$sportToDelete]);
+            }
+            
             $sports = $websites[$websiteIndex]['sports_categories'];
             $sports = array_filter($sports, function($sport) use ($sportToDelete) {
                 return $sport !== $sportToDelete;
             });
             $websites[$websiteIndex]['sports_categories'] = array_values($sports);
-            
-            // Remove icon
-            if (isset($websites[$websiteIndex]['sports_icons'][$sportToDelete])) {
-                unset($websites[$websiteIndex]['sports_icons'][$sportToDelete]);
-            }
             
             $success = "Sport category '{$sportToDelete}' deleted successfully!";
         }
@@ -234,196 +375,253 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <title>Manage Sports - <?php echo htmlspecialchars($website['site_name']); ?></title>
     <link rel="stylesheet" href="cms-style.css">
     <style>
-        .sports-list {
+        .sports-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
             margin: 20px 0;
         }
-        .sport-item {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
+        
+        .sport-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            cursor: move;
+            gap: 15px;
             transition: all 0.3s;
-        }
-        .sport-item:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
-        }
-        .sport-item.dragging {
-            opacity: 0.5;
-            cursor: grabbing;
-        }
-        .sport-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .sport-icon-preview {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: white;
-            border-radius: 6px;
-            border: 1px solid #dee2e6;
-            flex-shrink: 0;
-        }
-        .sport-icon-preview img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        .sport-icon-preview.no-icon {
-            color: #999;
-            font-size: 20px;
-        }
-        .sport-name {
-            font-weight: 600;
-            color: #2c3e50;
-            flex: 1;
-        }
-        .drag-handle {
-            cursor: move;
-            font-size: 20px;
-            opacity: 0.5;
-        }
-        .add-sport-box {
-            background: #e8f5e9;
-            padding: 25px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-        }
-        .sport-actions {
-            display: flex;
-            gap: 5px;
-        }
-        .edit-icon-btn {
-            background: #3498db;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            flex: 1;
-        }
-        .edit-icon-btn:hover {
-            background: #2980b9;
-        }
-        .edit-btn {
-            background: #f39c12;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            flex: 1;
-        }
-        .edit-btn:hover {
-            background: #e67e22;
-        }
-        .delete-btn {
-            background: #e74c3c;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            flex: 1;
-        }
-        .delete-btn:hover {
-            background: #c0392b;
-        }
-        .slack-info {
-            background: #fff3cd;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border-left: 4px solid #ffc107;
-        }
-        .slack-info h3 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-        .slack-info code {
-            background: #fff;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        .icon-info {
-            background: #e3f2fd;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 30px;
-            border-left: 4px solid #2196f3;
-        }
-        .icon-info h3 {
-            color: #1565c0;
-            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 9999;
+        body.dark-mode .sport-card {
+            background: linear-gradient(135deg, #2c2c2c 0%, #3a3a3a 100%);
+            border-color: #4a4a4a;
+        }
+        
+        .sport-card:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transform: translateY(-3px);
+        }
+        
+        .sport-card-header {
+            display: flex;
             align-items: center;
-            justify-content: center;
+            gap: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e9ecef;
         }
-        .modal.active {
-            display: flex;
+        
+        body.dark-mode .sport-card-header {
+            border-bottom-color: #4a4a4a;
         }
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            max-width: 500px;
-            width: 90%;
-        }
-        .modal-content h3 {
-            margin-bottom: 20px;
-            color: #2c3e50;
-        }
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            justify-content: flex-end;
-        }
-        .icon-preview-large {
+        
+        .sport-icon-display {
             width: 64px;
             height: 64px;
-            margin: 10px auto;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
-        .icon-preview-large img {
-            max-width: 100%;
-            max-height: 100%;
+        
+        .sport-icon-display img {
+            width: 48px;
+            height: 48px;
             object-fit: contain;
         }
-        .icon-preview-large.no-icon {
-            color: #999;
-            font-size: 32px;
+        
+        .sport-icon-display.no-icon {
+            font-size: 36px;
+            color: white;
+        }
+        
+        .sport-card-info {
+            flex: 1;
+        }
+        
+        .sport-card-name {
+            font-weight: 700;
+            font-size: 18px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        body.dark-mode .sport-card-name {
+            color: #f7fafc;
+        }
+        
+        .sport-card-meta {
+            font-size: 13px;
+            color: #7f8c8d;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sport-card-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .sport-card-actions button,
+        .sport-card-actions .btn-delete {
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .btn-edit-icon {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+        }
+        
+        .btn-edit-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+        }
+        
+        .btn-rename {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+        
+        .btn-rename:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+        }
+        
+        .btn-delete {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            grid-column: 1 / -1;
+        }
+        
+        .btn-delete:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+        }
+        
+        .add-sport-card {
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            border: 2px solid #81c784;
+            box-shadow: 0 4px 12px rgba(129, 199, 132, 0.2);
+        }
+        
+        body.dark-mode .add-sport-card {
+            background: linear-gradient(135deg, #2e5d3e 0%, #3d7a4e 100%);
+            border-color: #4caf50;
+        }
+        
+        .add-sport-form {
+            display: grid;
+            grid-template-columns: 2fr 2fr 1fr;
+            gap: 15px;
+            align-items: end;
+        }
+        
+        .file-upload-wrapper {
+            position: relative;
+        }
+        
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .file-upload-input {
+            display: none;
+        }
+        
+        .file-name-display {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+        }
+        
+        /* Modal improvements */
+        .modal-content {
+            max-width: 600px;
+        }
+        
+        .upload-preview-area {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        body.dark-mode .upload-preview-area {
+            background: #2c2c2c;
+        }
+        
+        .preview-icon-large {
+            width: 128px;
+            height: 128px;
+            margin: 0 auto 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+        
+        .preview-icon-large img {
+            max-width: 96px;
+            max-height: 96px;
+            object-fit: contain;
+        }
+        
+        .preview-icon-large.no-icon {
+            font-size: 64px;
+            color: white;
+        }
+        
+        .slack-info, .icon-info {
+            margin-bottom: 25px;
+        }
+        
+        @media (max-width: 768px) {
+            .add-sport-form {
+                grid-template-columns: 1fr;
+            }
+            
+            .sports-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -468,11 +666,10 @@ $sportsIcons = $website['sports_icons'] ?? [];
                 
                 <!-- Icon Upload Instructions -->
                 <div class="icon-info">
-                    <h3>📁 How to Add Sport Icons</h3>
-                    <p><strong>Step 1:</strong> Upload your sport icon images to <code>/images/sports/</code> folder via FTP</p>
-                    <p><strong>Step 2:</strong> Use format: PNG, JPG, or SVG (recommended size: 64x64px)</p>
-                    <p><strong>Step 3:</strong> Enter the filename below (e.g., <code>football.png</code>)</p>
-                    <p style="margin-top: 10px;"><strong>Example:</strong> Upload <code>football.png</code> → Enter <code>football.png</code> in icon field</p>
+                    <h3>📁 Sport Icon Upload</h3>
+                    <p><strong>✅ Supported formats:</strong> PNG, WEBP, SVG, AVIF</p>
+                    <p><strong>📐 Auto-resize:</strong> Images will be automatically resized to 64x64px (except SVG)</p>
+                    <p><strong>💡 Tip:</strong> Use transparent backgrounds for best results</p>
                 </div>
                 
                 <!-- Slack Integration Info -->
@@ -486,60 +683,80 @@ $sportsIcons = $website['sports_icons'] ?? [];
                 </div>
                 
                 <!-- Add Sport Form -->
-                <div class="add-sport-box">
-                    <h3 style="margin-bottom: 15px; color: #2e7d32;">➕ Add New Sport Category</h3>
-                    <form method="POST">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: flex-end;">
+                <div class="add-sport-card">
+                    <h3 style="margin-bottom: 20px; color: #2e7d32; font-size: 20px;">➕ Add New Sport Category</h3>
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="add-sport-form">
                             <div class="form-group" style="margin-bottom: 0;">
                                 <label for="new_sport_name">Sport Name *</label>
                                 <input type="text" id="new_sport_name" name="new_sport_name" placeholder="e.g., Rugby League" required>
                             </div>
+                            
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label for="new_sport_icon">Icon Filename (optional)</label>
-                                <input type="text" id="new_sport_icon" name="new_sport_icon" placeholder="e.g., rugby.png">
+                                <label>Sport Icon</label>
+                                <div class="file-upload-wrapper">
+                                    <label for="new_sport_icon" class="file-upload-label">
+                                        <span>📤</span>
+                                        <span>Choose Image</span>
+                                    </label>
+                                    <input type="file" id="new_sport_icon" name="new_sport_icon" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                                    <div class="file-name-display" id="newSportFileName">No file chosen</div>
+                                </div>
                             </div>
-                            <button type="submit" name="add_sport" class="btn btn-primary">Add Sport</button>
+                            
+                            <button type="submit" name="add_sport" class="btn btn-primary" style="height: fit-content;">Add Sport</button>
                         </div>
                     </form>
                 </div>
                 
-                <!-- Sports List -->
+                <!-- Sports Grid -->
                 <div class="content-section">
                     <div class="section-header">
                         <h2>Current Sports Categories (<?php echo count($sports); ?>)</h2>
-                        <p style="color: #666; font-size: 14px;">💡 Drag and drop to reorder</p>
                     </div>
                     
-                    <form method="POST" id="reorderForm">
-                        <input type="hidden" name="reorder_sports" value="1">
-                        <input type="hidden" name="sports_order" id="sportsOrder">
-                    </form>
-                    
-                    <div class="sports-list" id="sportsList">
+                    <div class="sports-grid">
                         <?php foreach ($sports as $sport): 
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
                         ?>
-                            <div class="sport-item" draggable="true" data-sport="<?php echo htmlspecialchars($sport); ?>">
-                                <div class="sport-header">
-                                    <span class="drag-handle">⋮⋮</span>
-                                    <div class="sport-icon-preview <?php echo $hasIcon ? '' : 'no-icon'; ?>">
+                            <div class="sport-card">
+                                <div class="sport-card-header">
+                                    <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
                                         <?php if ($hasIcon): ?>
                                             <img src="/images/sports/<?php echo htmlspecialchars($iconFile); ?>" alt="<?php echo htmlspecialchars($sport); ?>">
                                         <?php else: ?>
                                             ?
                                         <?php endif; ?>
                                     </div>
-                                    <span class="sport-name"><?php echo htmlspecialchars($sport); ?></span>
+                                    <div class="sport-card-info">
+                                        <div class="sport-card-name"><?php echo htmlspecialchars($sport); ?></div>
+                                        <div class="sport-card-meta">
+                                            <?php if ($hasIcon): ?>
+                                                <span>✅ Has icon</span>
+                                                <span>•</span>
+                                                <span><?php echo htmlspecialchars($iconFile); ?></span>
+                                            <?php else: ?>
+                                                <span style="color: #e74c3c;">⚠️ No icon</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="sport-actions">
-                                    <button type="button" class="edit-icon-btn" onclick="openIconModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($iconFile, ENT_QUOTES); ?>')">
-                                        <?php echo $hasIcon ? '🖼️ Edit Icon' : '➕ Add Icon'; ?>
+                                
+                                <div class="sport-card-actions">
+                                    <button type="button" class="btn-edit-icon" onclick="openIconModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($iconFile, ENT_QUOTES); ?>')">
+                                        🖼️ <?php echo $hasIcon ? 'Change' : 'Add'; ?> Icon
                                     </button>
-                                    <button type="button" class="edit-btn" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">Rename</button>
-                                    <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>?');" style="margin: 0; flex: 1;">
+                                    
+                                    <button type="button" class="btn-rename" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
+                                        ✏️ Rename
+                                    </button>
+                                    
+                                    <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>?');" style="margin: 0; grid-column: 1 / -1;">
                                         <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
-                                        <button type="submit" name="delete_sport" class="delete-btn" style="width: 100%;">Delete</button>
+                                        <button type="submit" name="delete_sport" class="btn-delete">
+                                            🗑️ Delete Sport
+                                        </button>
                                     </form>
                                 </div>
                             </div>
@@ -547,8 +764,10 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     </div>
                     
                     <?php if (empty($sports)): ?>
-                        <div style="text-align: center; padding: 40px; color: #999;">
-                            <p>No sports categories yet. Add your first sport above!</p>
+                        <div style="text-align: center; padding: 60px; color: #999;">
+                            <div style="font-size: 80px; margin-bottom: 20px;">⚽</div>
+                            <h3>No sports categories yet</h3>
+                            <p>Add your first sport category above!</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -560,19 +779,32 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <div class="modal" id="iconModal">
         <div class="modal-content">
             <h3>Edit Sport Icon</h3>
-            <form method="POST" id="iconForm">
+            <form method="POST" enctype="multipart/form-data" id="iconForm">
                 <input type="hidden" name="edit_icon" value="1">
                 <input type="hidden" name="sport_name" id="iconSportName">
                 
-                <div id="iconPreviewContainer" class="icon-preview-large no-icon">?</div>
+                <div class="upload-preview-area">
+                    <div id="iconPreviewContainer" class="preview-icon-large no-icon">?</div>
+                    <p style="color: #666; margin-top: 10px;" id="currentIconName">No icon</p>
+                </div>
                 
                 <div class="form-group">
-                    <label for="sportIconInput">Icon Filename</label>
-                    <input type="text" id="sportIconInput" name="sport_icon" placeholder="e.g., football.png">
-                    <small>Upload image to /images/sports/ first, then enter filename here. Leave empty to remove icon.</small>
+                    <label for="sportIconFile">Upload New Icon</label>
+                    <div class="file-upload-wrapper">
+                        <label for="sportIconFile" class="file-upload-label">
+                            <span>📤</span>
+                            <span>Choose New Image</span>
+                        </label>
+                        <input type="file" id="sportIconFile" name="sport_icon_file" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                        <div class="file-name-display" id="editSportFileName">No file chosen</div>
+                    </div>
+                    <small>PNG, WEBP, SVG, AVIF • Auto-resize to 64x64px</small>
                 </div>
                 
                 <div class="modal-actions">
+                    <?php if ($hasIcon): ?>
+                        <button type="submit" name="delete_icon" class="btn btn-danger" onclick="return confirm('Delete this icon?')">Delete Icon</button>
+                    <?php endif; ?>
                     <button type="button" class="btn btn-outline" onclick="closeIconModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Icon</button>
                 </div>
@@ -600,41 +832,54 @@ $sportsIcons = $website['sports_icons'] ?? [];
     </div>
     
     <script>
+        // File upload preview for new sport
+        document.getElementById('new_sport_icon').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'No file chosen';
+            document.getElementById('newSportFileName').textContent = fileName;
+        });
+        
+        // File upload preview for edit icon
+        document.getElementById('sportIconFile').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'No file chosen';
+            document.getElementById('editSportFileName').textContent = fileName;
+            
+            // Show preview
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const preview = document.getElementById('iconPreviewContainer');
+                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview">';
+                    preview.classList.remove('no-icon');
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+        
         // Icon Modal Functions
         function openIconModal(sportName, currentIcon) {
             document.getElementById('iconSportName').value = sportName;
-            document.getElementById('sportIconInput').value = currentIcon;
             
             const preview = document.getElementById('iconPreviewContainer');
+            const iconName = document.getElementById('currentIconName');
+            
             if (currentIcon) {
                 preview.innerHTML = '<img src="/images/sports/' + currentIcon + '" alt="' + sportName + '">';
                 preview.classList.remove('no-icon');
+                iconName.textContent = 'Current: ' + currentIcon;
             } else {
                 preview.innerHTML = '?';
                 preview.classList.add('no-icon');
+                iconName.textContent = 'No icon';
             }
             
+            document.getElementById('editSportFileName').textContent = 'No file chosen';
             document.getElementById('iconModal').classList.add('active');
-            document.getElementById('sportIconInput').focus();
         }
         
         function closeIconModal() {
             document.getElementById('iconModal').classList.remove('active');
+            document.getElementById('sportIconFile').value = '';
         }
-        
-        // Preview icon as user types
-        document.getElementById('sportIconInput').addEventListener('input', function(e) {
-            const filename = e.target.value.trim();
-            const preview = document.getElementById('iconPreviewContainer');
-            
-            if (filename) {
-                preview.innerHTML = '<img src="/images/sports/' + filename + '" alt="Preview">';
-                preview.classList.remove('no-icon');
-            } else {
-                preview.innerHTML = '?';
-                preview.classList.add('no-icon');
-            }
-        });
         
         // Rename Modal Functions
         function openRenameModal(sportName) {
@@ -657,61 +902,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
         document.getElementById('renameModal').addEventListener('click', function(e) {
             if (e.target === this) closeRenameModal();
         });
-        
-        // Drag and Drop functionality
-        const sportsList = document.getElementById('sportsList');
-        let draggedElement = null;
-        
-        sportsList.addEventListener('dragstart', (e) => {
-            if (e.target.classList.contains('sport-item')) {
-                draggedElement = e.target;
-                e.target.classList.add('dragging');
-            }
-        });
-        
-        sportsList.addEventListener('dragend', (e) => {
-            if (e.target.classList.contains('sport-item')) {
-                e.target.classList.remove('dragging');
-                draggedElement = null;
-                saveNewOrder();
-            }
-        });
-        
-        sportsList.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            const afterElement = getDragAfterElement(sportsList, e.clientY);
-            const dragging = document.querySelector('.dragging');
-            if (afterElement == null) {
-                sportsList.appendChild(dragging);
-            } else {
-                sportsList.insertBefore(dragging, afterElement);
-            }
-        });
-        
-        function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.sport-item:not(.dragging)')];
-            
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
-        }
-        
-        function saveNewOrder() {
-            const sportItems = document.querySelectorAll('.sport-item');
-            const newOrder = [];
-            sportItems.forEach(item => {
-                newOrder.push(item.dataset.sport);
-            });
-            
-            document.getElementById('sportsOrder').value = JSON.stringify(newOrder);
-            document.getElementById('reorderForm').submit();
-        }
     </script>
 </body>
 </html>
