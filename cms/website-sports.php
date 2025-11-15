@@ -106,6 +106,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // Handle Rename Sport
+        if (isset($_POST['rename_sport'])) {
+            $oldName = $_POST['old_sport_name'] ?? '';
+            $newName = trim($_POST['new_sport_name'] ?? '');
+            
+            if ($oldName && $newName) {
+                $sports = $websites[$websiteIndex]['sports_categories'];
+                $index = array_search($oldName, $sports);
+                
+                if ($index !== false) {
+                    // Check if new name already exists
+                    if (!in_array($newName, $sports)) {
+                        $sports[$index] = $newName;
+                        $websites[$websiteIndex]['sports_categories'] = $sports;
+                        $success = "Sport category renamed from '{$oldName}' to '{$newName}' successfully!";
+                    } else {
+                        $error = "Sport category '{$newName}' already exists!";
+                    }
+                } else {
+                    $error = "Sport category '{$oldName}' not found!";
+                }
+            } else {
+                $error = "Please enter a valid sport name";
+            }
+        }
+        
         // Handle Delete Sport
         if (isset($_POST['delete_sport'])) {
             $sportToDelete = $_POST['sport_name'] ?? '';
@@ -199,6 +225,7 @@ $sports = $website['sports_categories'] ?? [];
             display: flex;
             align-items: center;
             gap: 8px;
+            flex: 1;
         }
         .drag-handle {
             cursor: move;
@@ -210,6 +237,22 @@ $sports = $website['sports_categories'] ?? [];
             padding: 25px;
             border-radius: 8px;
             margin-bottom: 30px;
+        }
+        .sport-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .edit-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .edit-btn:hover {
+            background: #2980b9;
         }
         .delete-btn {
             background: #e74c3c;
@@ -239,6 +282,40 @@ $sports = $website['sports_categories'] ?? [];
             padding: 2px 6px;
             border-radius: 3px;
             font-family: monospace;
+        }
+        
+        /* Rename Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+        }
+        .modal-content h3 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
         }
     </style>
 </head>
@@ -289,17 +366,6 @@ $sports = $website['sports_categories'] ?? [];
                     <pre style="background: #fff; padding: 10px; border-radius: 4px; overflow-x: auto;">{
   "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 }</pre>
-                    <p><strong>How to get Slack Webhook URL:</strong></p>
-                    <ol style="margin-left: 20px; margin-top: 10px;">
-                        <li>Go to <a href="https://api.slack.com/messaging/webhooks" target="_blank">https://api.slack.com/messaging/webhooks</a></li>
-                        <li>Click "Create your Slack app"</li>
-                        <li>Choose "From scratch" and name your app (e.g., "Sports CMS")</li>
-                        <li>Select your workspace</li>
-                        <li>Go to "Incoming Webhooks" and activate it</li>
-                        <li>Click "Add New Webhook to Workspace"</li>
-                        <li>Choose a channel and authorize</li>
-                        <li>Copy the webhook URL and paste it in slack-config.json</li>
-                    </ol>
                 </div>
                 
                 <!-- Add Sport Form -->
@@ -335,10 +401,13 @@ $sports = $website['sports_categories'] ?? [];
                                     <span class="drag-handle">⋮⋮</span>
                                     <?php echo htmlspecialchars($sport); ?>
                                 </span>
-                                <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>?');" style="margin: 0;">
-                                    <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
-                                    <button type="submit" name="delete_sport" class="delete-btn">Delete</button>
-                                </form>
+                                <div class="sport-actions">
+                                    <button type="button" class="edit-btn" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">Edit</button>
+                                    <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>?');" style="margin: 0;">
+                                        <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
+                                        <button type="submit" name="delete_sport" class="delete-btn">Delete</button>
+                                    </form>
+                                </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -353,7 +422,46 @@ $sports = $website['sports_categories'] ?? [];
         </main>
     </div>
     
+    <!-- Rename Modal -->
+    <div class="modal" id="renameModal">
+        <div class="modal-content">
+            <h3>Rename Sport Category</h3>
+            <form method="POST" id="renameForm">
+                <input type="hidden" name="rename_sport" value="1">
+                <input type="hidden" name="old_sport_name" id="oldSportName">
+                <div class="form-group">
+                    <label for="newSportNameInput">New Sport Name</label>
+                    <input type="text" id="newSportNameInput" name="new_sport_name" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Rename</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
     <script>
+        // Rename Modal Functions
+        function openRenameModal(sportName) {
+            document.getElementById('oldSportName').value = sportName;
+            document.getElementById('newSportNameInput').value = sportName;
+            document.getElementById('renameModal').classList.add('active');
+            document.getElementById('newSportNameInput').focus();
+            document.getElementById('newSportNameInput').select();
+        }
+        
+        function closeRenameModal() {
+            document.getElementById('renameModal').classList.remove('active');
+        }
+        
+        // Close modal on outside click
+        document.getElementById('renameModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeRenameModal();
+            }
+        });
+        
         // Drag and Drop functionality
         const sportsList = document.getElementById('sportsList');
         let draggedElement = null;

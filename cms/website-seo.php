@@ -115,6 +115,20 @@ $pagesSeo = $website['pages_seo'] ?? [];
 $homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => ''];
 $favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => ''];
 $sportsSeo = $pagesSeo['sports'] ?? [];
+
+// Function to get status indicator
+function getStatusIndicator($title, $description) {
+    $titleFilled = !empty(trim($title));
+    $descFilled = !empty(trim($description));
+    
+    if ($titleFilled && $descFilled) {
+        return '🟢'; // Green - both filled
+    } elseif ($titleFilled || $descFilled) {
+        return '🟠'; // Orange - partially filled
+    } else {
+        return '🔴'; // Red - empty
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -124,34 +138,47 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
     <title>Manage SEO - <?php echo htmlspecialchars($website['site_name']); ?></title>
     <link rel="stylesheet" href="cms-style.css">
     <style>
-        .page-seo-section {
-            margin-bottom: 30px;
-            padding: 25px;
-            background: #fff;
-            border-radius: 8px;
-            border-left: 4px solid #3498db;
-        }
-        .page-seo-section h3 {
-            color: #2c3e50;
-            margin-bottom: 20px;
-            font-size: 18px;
-        }
-        .sport-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .sport-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
-        }
-        .sport-card h4 {
-            color: #2c3e50;
+        .seo-accordion {
             margin-bottom: 15px;
+        }
+        .seo-accordion details {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .seo-accordion summary {
+            padding: 20px;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #2c3e50;
             font-size: 16px;
+            background: #f8f9fa;
+            transition: background 0.3s;
+        }
+        .seo-accordion summary::-webkit-details-marker {
+            display: none;
+        }
+        .seo-accordion summary:hover {
+            background: #e9ecef;
+        }
+        .seo-accordion details[open] summary {
+            background: #e9ecef;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .seo-accordion-content {
+            padding: 25px;
+        }
+        .status-indicator {
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        .accordion-title {
+            flex: 1;
         }
         .sports-count-info {
             background: #e8f5e9;
@@ -163,6 +190,14 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        .page-seo-section {
+            margin-bottom: 30px;
+        }
+        .page-seo-section h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 18px;
         }
     </style>
 </head>
@@ -206,34 +241,52 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                     <!-- Home Page SEO -->
                     <div class="page-seo-section">
                         <h3>🏠 Home Page SEO</h3>
-                        
-                        <div class="form-group">
-                            <label for="home_title">SEO Title</label>
-                            <input type="text" id="home_title" name="home_title" value="<?php echo htmlspecialchars($homeSeo['title']); ?>" placeholder="Home - <?php echo htmlspecialchars($website['site_name']); ?>">
-                            <small>Recommended: 50-60 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="home_description">SEO Description</label>
-                            <textarea id="home_description" name="home_description" rows="3" placeholder="Watch live sports streaming online..."><?php echo htmlspecialchars($homeSeo['description']); ?></textarea>
-                            <small>Recommended: 150-160 characters</small>
+                        <div class="seo-accordion">
+                            <details>
+                                <summary>
+                                    <span class="status-indicator"><?php echo getStatusIndicator($homeSeo['title'], $homeSeo['description']); ?></span>
+                                    <span class="accordion-title">Home Page</span>
+                                </summary>
+                                <div class="seo-accordion-content">
+                                    <div class="form-group">
+                                        <label for="home_title">SEO Title</label>
+                                        <input type="text" id="home_title" name="home_title" value="<?php echo htmlspecialchars($homeSeo['title']); ?>" placeholder="Home - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                        <small>Recommended: 50-60 characters</small>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="home_description">SEO Description</label>
+                                        <textarea id="home_description" name="home_description" rows="3" placeholder="Watch live sports streaming online..."><?php echo htmlspecialchars($homeSeo['description']); ?></textarea>
+                                        <small>Recommended: 150-160 characters</small>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
                     
                     <!-- Favorites Page SEO -->
                     <div class="page-seo-section">
                         <h3>⭐ Favorites Page SEO</h3>
-                        
-                        <div class="form-group">
-                            <label for="favorites_title">SEO Title</label>
-                            <input type="text" id="favorites_title" name="favorites_title" value="<?php echo htmlspecialchars($favoritesSeo['title']); ?>" placeholder="My Favorites - <?php echo htmlspecialchars($website['site_name']); ?>">
-                            <small>Recommended: 50-60 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="favorites_description">SEO Description</label>
-                            <textarea id="favorites_description" name="favorites_description" rows="3" placeholder="Your favorite sports games and streams..."><?php echo htmlspecialchars($favoritesSeo['description']); ?></textarea>
-                            <small>Recommended: 150-160 characters</small>
+                        <div class="seo-accordion">
+                            <details>
+                                <summary>
+                                    <span class="status-indicator"><?php echo getStatusIndicator($favoritesSeo['title'], $favoritesSeo['description']); ?></span>
+                                    <span class="accordion-title">Favorites Page</span>
+                                </summary>
+                                <div class="seo-accordion-content">
+                                    <div class="form-group">
+                                        <label for="favorites_title">SEO Title</label>
+                                        <input type="text" id="favorites_title" name="favorites_title" value="<?php echo htmlspecialchars($favoritesSeo['title']); ?>" placeholder="My Favorites - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                        <small>Recommended: 50-60 characters</small>
+                                    </div>
+                                    
+                                    <div class="form-group">
+                                        <label for="favorites_description">SEO Description</label>
+                                        <textarea id="favorites_description" name="favorites_description" rows="3" placeholder="Your favorite sports games and streams..."><?php echo htmlspecialchars($favoritesSeo['description']); ?></textarea>
+                                        <small>Recommended: 150-160 characters</small>
+                                    </div>
+                                </div>
+                            </details>
                         </div>
                     </div>
                     
@@ -247,30 +300,37 @@ $sportsSeo = $pagesSeo['sports'] ?? [];
                             <a href="website-sports.php?id=<?php echo $websiteId; ?>" class="btn btn-sm" style="background: #3498db; color: white;">Manage Sports Categories</a>
                         </div>
                         
-                        <div class="sport-grid">
+                        <div class="seo-accordion">
                             <?php foreach ($sportsArray as $sport): 
                                 $slug = $sport['slug'];
                                 $sportSeo = $sportsSeo[$slug] ?? ['title' => '', 'description' => ''];
+                                $status = getStatusIndicator($sportSeo['title'], $sportSeo['description']);
                             ?>
-                                <div class="sport-card">
-                                    <h4><?php echo htmlspecialchars($sport['name']); ?></h4>
-                                    
-                                    <div class="form-group">
-                                        <label for="sport_title_<?php echo $slug; ?>">Title</label>
-                                        <input type="text" id="sport_title_<?php echo $slug; ?>" name="sport_title_<?php echo $slug; ?>" value="<?php echo htmlspecialchars($sportSeo['title']); ?>" placeholder="Live <?php echo htmlspecialchars($sport['name']); ?> - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                <details>
+                                    <summary>
+                                        <span class="status-indicator"><?php echo $status; ?></span>
+                                        <span class="accordion-title"><?php echo htmlspecialchars($sport['name']); ?></span>
+                                    </summary>
+                                    <div class="seo-accordion-content">
+                                        <div class="form-group">
+                                            <label for="sport_title_<?php echo $slug; ?>">SEO Title</label>
+                                            <input type="text" id="sport_title_<?php echo $slug; ?>" name="sport_title_<?php echo $slug; ?>" value="<?php echo htmlspecialchars($sportSeo['title']); ?>" placeholder="Live <?php echo htmlspecialchars($sport['name']); ?> - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                            <small>Recommended: 50-60 characters</small>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="sport_description_<?php echo $slug; ?>">SEO Description</label>
+                                            <textarea id="sport_description_<?php echo $slug; ?>" name="sport_description_<?php echo $slug; ?>" rows="3" placeholder="Watch <?php echo htmlspecialchars($sport['name']); ?> live streams..."><?php echo htmlspecialchars($sportSeo['description']); ?></textarea>
+                                            <small>Recommended: 150-160 characters</small>
+                                        </div>
                                     </div>
-                                    
-                                    <div class="form-group">
-                                        <label for="sport_description_<?php echo $slug; ?>">Description</label>
-                                        <textarea id="sport_description_<?php echo $slug; ?>" name="sport_description_<?php echo $slug; ?>" rows="3" placeholder="Watch <?php echo htmlspecialchars($sport['name']); ?> live streams..."><?php echo htmlspecialchars($sportSeo['description']); ?></textarea>
-                                    </div>
-                                </div>
+                                </details>
                             <?php endforeach; ?>
                         </div>
                     </div>
                     
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">Save All SEO Settings (<?php echo count($sportsArray); ?> Sports)</button>
+                        <button type="submit" class="btn btn-primary">Save All SEO Settings (<?php echo count($sportsArray) + 2; ?> Pages)</button>
                         <a href="dashboard.php" class="btn btn-outline">Cancel</a>
                     </div>
                 </form>
