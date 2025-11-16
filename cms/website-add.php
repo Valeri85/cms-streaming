@@ -10,9 +10,140 @@ $error = '';
 $success = '';
 
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
+$dataFile = '/var/www/u1852176/data/www/data/data.json';
+$uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
+}
+
+// Create upload directory if it doesn't exist
+if (!file_exists($uploadDir)) {
+    mkdir($uploadDir, 0755, true);
+}
+
+// Function to handle logo upload
+function handleLogoUpload($file, $uploadDir) {
+    $allowedTypes = ['image/png', 'image/webp', 'image/svg+xml'];
+    $allowedExtensions = ['png', 'webp', 'svg'];
+    
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['error' => 'No file uploaded'];
+    }
+    
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    // Check AVIF
+    if (strpos($file['name'], '.avif') !== false) {
+        $mimeType = 'image/avif';
+        $allowedTypes[] = 'image/avif';
+        $allowedExtensions[] = 'avif';
+    }
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['error' => 'Invalid file type. Only PNG, WEBP, SVG, AVIF allowed'];
+    }
+    
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        return ['error' => 'Invalid file extension'];
+    }
+    
+    $filename = uniqid('logo_', true) . '.' . $extension;
+    $filepath = $uploadDir . $filename;
+    
+    // For raster images (PNG, WEBP, AVIF), resize to 64x64
+    if (in_array($extension, ['png', 'webp', 'avif'])) {
+        if (!extension_loaded('gd')) {
+            return ['error' => 'GD extension not available'];
+        }
+        
+        switch ($extension) {
+            case 'png':
+                $sourceImage = @imagecreatefrompng($file['tmp_name']);
+                break;
+            case 'webp':
+                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+                break;
+            case 'avif':
+                if (function_exists('imagecreatefromavif')) {
+                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
+                } else {
+                    return ['error' => 'AVIF format not supported on this server'];
+                }
+                break;
+        }
+        
+        if (!$sourceImage) {
+            return ['error' => 'Failed to process image'];
+        }
+        
+        $targetImage = imagecreatetruecolor(64, 64);
+        
+        if ($extension === 'png' || $extension === 'webp') {
+            imagealphablending($targetImage, false);
+            imagesavealpha($targetImage, true);
+            $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+            imagefill($targetImage, 0, 0, $transparent);
+        }
+        
+        imagecopyresampled(
+            $targetImage, $sourceImage,
+            0, 0, 0, 0,
+            64, 64,
+            imagesx($sourceImage), imagesy($sourceImage)
+        );
+        
+        switch ($extension) {
+            case 'png':
+                imagepng($targetImage, $filepath, 9);
+                break;
+            case 'webp':
+                imagewebp($targetImage, $filepath, 90);
+                break;
+            case 'avif':
+                if (function_exists('imageavif')) {
+                    imageavif($targetImage, $filepath, 90);
+                }
+                break;
+        }
+        
+        imagedestroy($sourceImage);
+        imagedestroy($targetImage);
+    } else {
+        // For SVG, just copy
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            return ['error' => 'Failed to save file'];
+        }
+    }
+    
+    return ['success' => true, 'filename' => $filename];
+}
+
+// Function to get all sports from data.json
+function getAllSportsFromData($dataFile) {
+    if (!file_exists($dataFile)) {
+        return [];
+    }
+    
+    $jsonContent = file_get_contents($dataFile);
+    $data = json_decode($jsonContent, true);
+    $games = $data['games'] ?? [];
+    
+    $sports = [];
+    foreach ($games as $game) {
+        $sport = $game['sport'] ?? '';
+        if ($sport && !in_array($sport, $sports)) {
+            $sports[] = $sport;
+        }
+    }
+    
+    // Sort alphabetically
+    sort($sports);
+    
+    return $sports;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -22,18 +153,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $siteName = trim($_POST['site_name'] ?? '');
     $domain = trim($_POST['domain'] ?? '');
-    $logo = trim($_POST['logo'] ?? '🍋');
     $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
     $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
     $language = trim($_POST['language'] ?? 'en');
     $status = $_POST['status'] ?? 'active';
     
-    // Auto-generate SEO values
-    $seoTitle = $siteName . ' - Live Sports Streaming | Watch Games Online Free';
-    $seoDescription = 'Watch live sports streaming online free. Football, Basketball, Tennis and more. ' . $siteName . ' offers the best live sports streams in HD quality.';
-    
-    // Auto-generate sidebar content
-    $sidebarContent = '<h2>About ' . $siteName . '</h2><p>Your #1 destination for live sports streaming. Watch all major sports events for free!</p>';
+    $logo = ''; // Will be set after upload
     
     if ($siteName && $domain) {
         // Check if domain already exists
@@ -48,62 +173,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($domainExists) {
             $error = 'Domain already exists!';
         } else {
-            // Generate new ID
-            $maxId = 0;
-            foreach ($websites as $website) {
-                if ($website['id'] > $maxId) {
-                    $maxId = $website['id'];
+            // Handle logo upload
+            if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
+                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir);
+                if (isset($uploadResult['success'])) {
+                    $logo = $uploadResult['filename'];
+                } else {
+                    $error = $uploadResult['error'];
                 }
             }
-            $newId = $maxId + 1;
             
-            // Default sports list
-            $defaultSports = [
-                'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
-                'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
-                'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
-                'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
-                'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
-                'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
-                'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
-                'Chess', 'E-sports', 'Others'
-            ];
-            
-            // Add new website
-            $newWebsite = [
-                'id' => $newId,
-                'domain' => $domain,
-                'site_name' => $siteName,
-                'logo' => $logo,
-                'primary_color' => $primaryColor,
-                'secondary_color' => $secondaryColor,
-                'seo_title' => $seoTitle,
-                'seo_description' => $seoDescription,
-                'language' => $language,
-                'sidebar_content' => $sidebarContent,
-                'status' => $status,
-                'sports_categories' => $defaultSports,
-                'sports_icons' => []
-            ];
-            
-            $websites[] = $newWebsite;
-            $configData['websites'] = $websites;
-            
-            // Save to JSON with pretty print
-            $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            
-            if (file_put_contents($configFile, $jsonContent)) {
-                $success = 'Website added successfully with 48 default sports!';
-                // Clear form
-                $_POST = [];
-            } else {
-                $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
+            if (!$error) {
+                // Generate new ID
+                $maxId = 0;
+                foreach ($websites as $website) {
+                    if ($website['id'] > $maxId) {
+                        $maxId = $website['id'];
+                    }
+                }
+                $newId = $maxId + 1;
+                
+                // Get all sports from data.json
+                $allSports = getAllSportsFromData($dataFile);
+                
+                // Add new website
+                $newWebsite = [
+                    'id' => $newId,
+                    'domain' => $domain,
+                    'site_name' => $siteName,
+                    'logo' => $logo,
+                    'primary_color' => $primaryColor,
+                    'secondary_color' => $secondaryColor,
+                    'seo_title' => '', // Empty
+                    'seo_description' => '', // Empty
+                    'language' => $language,
+                    'sidebar_content' => '', // Empty
+                    'status' => $status,
+                    'sports_categories' => $allSports,
+                    'sports_icons' => []
+                ];
+                
+                $websites[] = $newWebsite;
+                $configData['websites'] = $websites;
+                
+                // Save to JSON with pretty print
+                $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                
+                if (file_put_contents($configFile, $jsonContent)) {
+                    $sportsCount = count($allSports);
+                    $success = "Website added successfully with {$sportsCount} sports from data.json!";
+                    // Clear form
+                    $_POST = [];
+                } else {
+                    $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
+                }
             }
         }
     } else {
         $error = 'Please fill all required fields';
     }
 }
+
+// Get current sports count from data.json for display
+$currentSportsCount = count(getAllSportsFromData($dataFile));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -112,6 +244,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
+    <style>
+        .logo-preview {
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            margin: 10px 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .logo-preview img {
+            max-width: 48px;
+            max-height: 48px;
+            object-fit: contain;
+        }
+        .logo-preview.empty {
+            color: white;
+            font-size: 32px;
+        }
+        .file-upload-wrapper {
+            position: relative;
+        }
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        .file-upload-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .file-upload-input {
+            display: none;
+        }
+        .file-name-display {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -152,7 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
                 
-                <form method="POST" class="cms-form">
+                <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <!-- Basic Info -->
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -172,9 +354,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="logo">Logo Emoji</label>
-                                <input type="text" id="logo" name="logo" value="<?php echo htmlspecialchars($_POST['logo'] ?? '🍋'); ?>" placeholder="🍋">
-                                <small>Use any emoji as your logo</small>
+                                <label>Logo Image</label>
+                                <div id="logoPreview" class="logo-preview empty">?</div>
+                                <div class="file-upload-wrapper">
+                                    <label for="logo_file" class="file-upload-label">
+                                        <span>📤</span>
+                                        <span>Choose Logo</span>
+                                    </label>
+                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                                    <div class="file-name-display" id="logoFileName">No file chosen</div>
+                                </div>
+                                <small>PNG, WEBP, SVG, AVIF • Recommended: 64x64px</small>
                             </div>
                             
                             <div class="form-group">
@@ -224,14 +414,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-section" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
                         <h3 style="color: #1565c0;">ℹ️ What happens after you create the website?</h3>
                         <ul style="margin-left: 20px; color: #424242;">
-                            <li style="margin-bottom: 10px;">✅ Website will be created with <strong>48 default sport categories</strong></li>
-                            <li style="margin-bottom: 10px;">✅ Default SEO settings will be auto-generated</li>
-                            <li style="margin-bottom: 10px;">✅ Default sidebar content will be created</li>
+                            <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> sport categories</strong> from current data.json</li>
+                            <li style="margin-bottom: 10px;">✅ SEO settings will be empty (you can configure later)</li>
+                            <li style="margin-bottom: 10px;">✅ Sidebar content will be empty (you can configure later)</li>
                             <li style="margin-bottom: 10px;">📝 You can customize everything from the dashboard:
                                 <ul style="margin-left: 20px; margin-top: 5px;">
                                     <li>Manage sports categories and icons</li>
                                     <li>Configure SEO for each page</li>
-                                    <li>Edit sidebar content</li>
+                                    <li>Edit website settings</li>
                                 </ul>
                             </li>
                         </ul>
@@ -254,6 +444,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         document.getElementById('secondary_color').addEventListener('input', function(e) {
             e.target.nextElementSibling.value = e.target.value;
+        });
+        
+        // Logo preview
+        document.getElementById('logo_file').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'No file chosen';
+            document.getElementById('logoFileName').textContent = fileName;
+            
+            if (e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const preview = document.getElementById('logoPreview');
+                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Logo Preview">';
+                    preview.classList.remove('empty');
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
         });
     </script>
 </body>
