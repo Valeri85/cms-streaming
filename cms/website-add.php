@@ -9,14 +9,12 @@ if (!isset($_SESSION['admin_id'])) {
 $error = '';
 $success = '';
 
-// Using absolute path
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
 }
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $configContent = file_get_contents($configFile);
     $configData = json_decode($configContent, true);
@@ -27,13 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logo = trim($_POST['logo'] ?? '🍋');
     $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
     $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
-    $seoTitle = trim($_POST['seo_title'] ?? '');
-    $seoDescription = trim($_POST['seo_description'] ?? '');
     $language = trim($_POST['language'] ?? 'en');
-    $sidebarContent = trim($_POST['sidebar_content'] ?? '');
     $status = $_POST['status'] ?? 'active';
     
-    if ($siteName && $domain && $seoTitle) {
+    // Auto-generate SEO values
+    $seoTitle = $siteName . ' - Live Sports Streaming | Watch Games Online Free';
+    $seoDescription = 'Watch live sports streaming online free. Football, Basketball, Tennis and more. ' . $siteName . ' offers the best live sports streams in HD quality.';
+    
+    // Auto-generate sidebar content
+    $sidebarContent = '<h2>About ' . $siteName . '</h2><p>Your #1 destination for live sports streaming. Watch all major sports events for free!</p>';
+    
+    if ($siteName && $domain) {
         // Check if domain already exists
         $domainExists = false;
         foreach ($websites as $website) {
@@ -80,7 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'language' => $language,
                 'sidebar_content' => $sidebarContent,
                 'status' => $status,
-                'sports_categories' => $defaultSports
+                'sports_categories' => $defaultSports,
+                'sports_icons' => []
             ];
             
             $websites[] = $newWebsite;
@@ -217,44 +220,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                     
-                    <!-- SEO Settings -->
-                    <div class="form-section">
-                        <h3>Default SEO Settings</h3>
-                        <p style="color: #666; font-size: 14px; margin-bottom: 15px;">These are fallback SEO settings. You can customize SEO for each page after creating the website.</p>
-                        
-                        <div class="form-group">
-                            <label for="seo_title">Default SEO Title *</label>
-                            <input type="text" id="seo_title" name="seo_title" value="<?php echo htmlspecialchars($_POST['seo_title'] ?? ''); ?>" required>
-                            <small>Recommended: 50-60 characters</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="seo_description">Default SEO Description</label>
-                            <textarea id="seo_description" name="seo_description" rows="3"><?php echo htmlspecialchars($_POST['seo_description'] ?? ''); ?></textarea>
-                            <small>Recommended: 150-160 characters</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Sidebar Content -->
-                    <div class="form-section">
-                        <h3>Right Sidebar Content</h3>
-                        
-                        <div class="form-group">
-                            <label for="sidebar_content">Sidebar HTML</label>
-                            <textarea id="sidebar_content" name="sidebar_content" rows="8"><?php echo htmlspecialchars($_POST['sidebar_content'] ?? '<h2>About</h2><p>Add your content here...</p>'); ?></textarea>
-                            <small>You can use HTML tags here (visible on desktop only)</small>
-                        </div>
-                    </div>
-                    
-                    <!-- Sports Info -->
-                    <div class="form-section" style="background: #e8f5e9;">
-                        <h3>Sports Categories</h3>
-                        <p style="color: #2e7d32;">✅ Your new website will include 48 default sport categories (Football, Basketball, Tennis, etc.)</p>
-                        <p style="color: #666; font-size: 14px;">You can manage and reorder sports after creating the website</p>
+                    <!-- What Happens Next -->
+                    <div class="form-section" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
+                        <h3 style="color: #1565c0;">ℹ️ What happens after you create the website?</h3>
+                        <ul style="margin-left: 20px; color: #424242;">
+                            <li style="margin-bottom: 10px;">✅ Website will be created with <strong>48 default sport categories</strong></li>
+                            <li style="margin-bottom: 10px;">✅ Default SEO settings will be auto-generated</li>
+                            <li style="margin-bottom: 10px;">✅ Default sidebar content will be created</li>
+                            <li style="margin-bottom: 10px;">📝 You can customize everything from the dashboard:
+                                <ul style="margin-left: 20px; margin-top: 5px;">
+                                    <li>Manage sports categories and icons</li>
+                                    <li>Configure SEO for each page</li>
+                                    <li>Edit sidebar content</li>
+                                </ul>
+                            </li>
+                        </ul>
                     </div>
                     
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">Add Website</button>
+                        <button type="submit" class="btn btn-primary">Create Website</button>
                         <a href="dashboard.php" class="btn btn-outline">Cancel</a>
                     </div>
                 </form>

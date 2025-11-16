@@ -15,7 +15,6 @@ if (!$websiteId) {
     exit;
 }
 
-// Using absolute path
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 $uploadDir = '/var/www/u1852176/data/www/streaming/images/sports/';
 
@@ -23,18 +22,18 @@ if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
 }
 
-// Create upload directory if it doesn't exist
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// Function to send Slack notification
 function sendSlackNotification($sportName) {
     $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
-    if (file_exists($slackConfigFile)) {
-        $slackConfig = json_decode(file_get_contents($slackConfigFile), true);
-        $slackWebhookUrl = $slackConfig['webhook_url'] ?? '';
+    if (!file_exists($slackConfigFile)) {
+        return false;
     }
+    
+    $slackConfig = json_decode(file_get_contents($slackConfigFile), true);
+    $slackWebhookUrl = $slackConfig['webhook_url'] ?? '';
     
     if (empty($slackWebhookUrl)) {
         return false;
@@ -65,56 +64,45 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
-// Function to handle image upload
 function handleImageUpload($file, $uploadDir) {
-    $allowedTypes = ['image/png', 'image/webp', 'image/svg+xml', 'image/avif'];
-    $allowedExtensions = ['png', 'webp', 'svg', 'avif'];
+    $allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+    $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'svg'];
     
-    // Check if file was uploaded
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         return ['error' => 'No file uploaded'];
     }
     
-    // Check file type
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mimeType = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     
     if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only PNG, WEBP, SVG, AVIF allowed'];
+        return ['error' => 'Invalid file type. Only PNG, JPG, WEBP, SVG allowed'];
     }
     
-    // Get file extension
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($extension, $allowedExtensions)) {
         return ['error' => 'Invalid file extension'];
     }
     
-    // Generate unique filename
     $filename = uniqid('sport_', true) . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    // For raster images (PNG, WEBP, AVIF), resize to 64x64
-    if (in_array($extension, ['png', 'webp', 'avif'])) {
+    if (in_array($extension, ['png', 'jpg', 'jpeg', 'webp'])) {
         if (!extension_loaded('gd')) {
-            return ['error' => 'GD extension not available for image processing'];
+            return ['error' => 'GD extension not available'];
         }
         
-        // Load image based on type
         switch ($extension) {
             case 'png':
                 $sourceImage = @imagecreatefrompng($file['tmp_name']);
                 break;
+            case 'jpg':
+            case 'jpeg':
+                $sourceImage = @imagecreatefromjpeg($file['tmp_name']);
+                break;
             case 'webp':
                 $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-                break;
-            case 'avif':
-                // AVIF support requires PHP 8.1+ and libavif
-                if (function_exists('imagecreatefromavif')) {
-                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
-                } else {
-                    return ['error' => 'AVIF format not supported on this server'];
-                }
                 break;
         }
         
@@ -122,10 +110,8 @@ function handleImageUpload($file, $uploadDir) {
             return ['error' => 'Failed to process image'];
         }
         
-        // Create 64x64 thumbnail
         $targetImage = imagecreatetruecolor(64, 64);
         
-        // Preserve transparency for PNG/WEBP
         if ($extension === 'png' || $extension === 'webp') {
             imagealphablending($targetImage, false);
             imagesavealpha($targetImage, true);
@@ -133,7 +119,6 @@ function handleImageUpload($file, $uploadDir) {
             imagefill($targetImage, 0, 0, $transparent);
         }
         
-        // Resize
         imagecopyresampled(
             $targetImage, $sourceImage,
             0, 0, 0, 0,
@@ -141,25 +126,22 @@ function handleImageUpload($file, $uploadDir) {
             imagesx($sourceImage), imagesy($sourceImage)
         );
         
-        // Save resized image
         switch ($extension) {
             case 'png':
                 imagepng($targetImage, $filepath, 9);
                 break;
+            case 'jpg':
+            case 'jpeg':
+                imagejpeg($targetImage, $filepath, 90);
+                break;
             case 'webp':
                 imagewebp($targetImage, $filepath, 90);
-                break;
-            case 'avif':
-                if (function_exists('imageavif')) {
-                    imageavif($targetImage, $filepath, 90);
-                }
                 break;
         }
         
         imagedestroy($sourceImage);
         imagedestroy($targetImage);
     } else {
-        // For SVG, just copy the file
         if (!move_uploaded_file($file['tmp_name'], $filepath)) {
             return ['error' => 'Failed to save file'];
         }
@@ -168,13 +150,11 @@ function handleImageUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
-// Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $configContent = file_get_contents($configFile);
     $configData = json_decode($configContent, true);
     $websites = $configData['websites'] ?? [];
     
-    // Find website
     $websiteIndex = null;
     foreach ($websites as $key => $site) {
         if ($site['id'] == $websiteId) {
@@ -184,17 +164,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if ($websiteIndex !== null) {
-        // Initialize sports_categories if not exists
         if (!isset($websites[$websiteIndex]['sports_categories'])) {
             $websites[$websiteIndex]['sports_categories'] = [];
         }
         
-        // Initialize sports_icons if not exists
         if (!isset($websites[$websiteIndex]['sports_icons'])) {
             $websites[$websiteIndex]['sports_icons'] = [];
         }
         
-        // Handle Add Sport
         if (isset($_POST['add_sport'])) {
             $newSport = trim($_POST['new_sport_name'] ?? '');
             
@@ -202,7 +179,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!in_array($newSport, $websites[$websiteIndex]['sports_categories'])) {
                     $websites[$websiteIndex]['sports_categories'][] = $newSport;
                     
-                    // Handle icon upload
                     if (isset($_FILES['new_sport_icon']) && $_FILES['new_sport_icon']['size'] > 0) {
                         $uploadResult = handleImageUpload($_FILES['new_sport_icon'], $uploadDir);
                         if (isset($uploadResult['success'])) {
@@ -213,13 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     if (!$error) {
-                        // Send Slack notification
-                        $slackSent = sendSlackNotification($newSport);
-                        
+                        sendSlackNotification($newSport);
                         $success = "Sport category '{$newSport}' added successfully!";
-                        if ($slackSent !== false) {
-                            $success .= " Slack notification sent.";
-                        }
                     }
                 } else {
                     $error = "Sport category '{$newSport}' already exists!";
@@ -229,33 +200,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Handle Edit Icon (with upload)
         if (isset($_POST['edit_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
             
-            if ($sportName) {
-                // Check if new file uploaded
-                if (isset($_FILES['sport_icon_file']) && $_FILES['sport_icon_file']['size'] > 0) {
-                    $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir);
-                    if (isset($uploadResult['success'])) {
-                        // Delete old icon if exists
-                        if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
-                            $oldFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
-                            if (file_exists($oldFile)) {
-                                unlink($oldFile);
-                            }
+            if ($sportName && isset($_FILES['sport_icon_file']) && $_FILES['sport_icon_file']['size'] > 0) {
+                $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir);
+                if (isset($uploadResult['success'])) {
+                    if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
+                        $oldFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
+                        if (file_exists($oldFile)) {
+                            unlink($oldFile);
                         }
-                        
-                        $websites[$websiteIndex]['sports_icons'][$sportName] = $uploadResult['filename'];
-                        $success = "Icon updated for '{$sportName}'";
-                    } else {
-                        $error = $uploadResult['error'];
                     }
+                    
+                    $websites[$websiteIndex]['sports_icons'][$sportName] = $uploadResult['filename'];
+                    $success = "Icon updated for '{$sportName}'";
+                } else {
+                    $error = $uploadResult['error'];
                 }
             }
         }
         
-        // Handle Delete Icon
         if (isset($_POST['delete_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
             
@@ -269,7 +234,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Handle Rename Sport
         if (isset($_POST['rename_sport'])) {
             $oldName = $_POST['old_sport_name'] ?? '';
             $newName = trim($_POST['new_sport_name'] ?? '');
@@ -283,7 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sports[$index] = $newName;
                         $websites[$websiteIndex]['sports_categories'] = $sports;
                         
-                        // Move icon to new name
                         if (isset($websites[$websiteIndex]['sports_icons'][$oldName])) {
                             $websites[$websiteIndex]['sports_icons'][$newName] = $websites[$websiteIndex]['sports_icons'][$oldName];
                             unset($websites[$websiteIndex]['sports_icons'][$oldName]);
@@ -301,11 +264,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Handle Delete Sport
         if (isset($_POST['delete_sport'])) {
             $sportToDelete = $_POST['sport_name'] ?? '';
             
-            // Delete icon file if exists
             if (isset($websites[$websiteIndex]['sports_icons'][$sportToDelete])) {
                 $iconFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportToDelete];
                 if (file_exists($iconFile)) {
@@ -323,7 +284,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = "Sport category '{$sportToDelete}' deleted successfully!";
         }
         
-        // Handle Reorder Sports
         if (isset($_POST['reorder_sports'])) {
             $newOrder = json_decode($_POST['sports_order'], true);
             if (is_array($newOrder)) {
@@ -332,7 +292,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Save changes
         if ($success || $error) {
             $configData['websites'] = $websites;
             $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -345,7 +304,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Load current website data
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
@@ -363,7 +321,6 @@ if (!$website) {
     exit;
 }
 
-// Get current sports and icons
 $sports = $website['sports_categories'] ?? [];
 $sportsIcons = $website['sports_icons'] ?? [];
 ?>
@@ -394,11 +351,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         
-        body.dark-mode .sport-card {
-            background: linear-gradient(135deg, #2c2c2c 0%, #3a3a3a 100%);
-            border-color: #4a4a4a;
-        }
-        
         .sport-card:hover {
             box-shadow: 0 6px 20px rgba(0,0,0,0.15);
             transform: translateY(-3px);
@@ -410,10 +362,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             gap: 15px;
             padding-bottom: 15px;
             border-bottom: 2px solid #e9ecef;
-        }
-        
-        body.dark-mode .sport-card-header {
-            border-bottom-color: #4a4a4a;
         }
         
         .sport-icon-display {
@@ -448,10 +396,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             font-size: 18px;
             color: #2c3e50;
             margin-bottom: 5px;
-        }
-        
-        body.dark-mode .sport-card-name {
-            color: #f7fafc;
         }
         
         .sport-card-meta {
@@ -523,11 +467,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             box-shadow: 0 4px 12px rgba(129, 199, 132, 0.2);
         }
         
-        body.dark-mode .add-sport-card {
-            background: linear-gradient(135deg, #2e5d3e 0%, #3d7a4e 100%);
-            border-color: #4caf50;
-        }
-        
         .add-sport-form {
             display: grid;
             grid-template-columns: 2fr 2fr 1fr;
@@ -570,9 +509,29 @@ $sportsIcons = $website['sports_icons'] ?? [];
             text-align: center;
         }
         
-        /* Modal improvements */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
         .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
             max-width: 600px;
+            width: 90%;
         }
         
         .upload-preview-area {
@@ -581,10 +540,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             background: #f8f9fa;
             border-radius: 12px;
             text-align: center;
-        }
-        
-        body.dark-mode .upload-preview-area {
-            background: #2c2c2c;
         }
         
         .preview-icon-large {
@@ -610,8 +565,30 @@ $sportsIcons = $website['sports_icons'] ?? [];
             color: white;
         }
         
-        .slack-info, .icon-info {
-            margin-bottom: 25px;
+        .icon-info {
+            background: #e3f2fd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .icon-info h3 {
+            color: #1565c0;
+            margin-bottom: 10px;
+        }
+        
+        .slack-info {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .slack-info h3 {
+            color: #856404;
+            margin-bottom: 10px;
         }
         
         @media (max-width: 768px) {
@@ -664,25 +641,18 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
-                <!-- Icon Upload Instructions -->
                 <div class="icon-info">
                     <h3>📁 Sport Icon Upload</h3>
-                    <p><strong>✅ Supported formats:</strong> PNG, WEBP, SVG, AVIF</p>
+                    <p><strong>✅ Supported formats:</strong> PNG, JPG, WEBP, SVG</p>
                     <p><strong>📐 Auto-resize:</strong> Images will be automatically resized to 64x64px (except SVG)</p>
                     <p><strong>💡 Tip:</strong> Use transparent backgrounds for best results</p>
                 </div>
                 
-                <!-- Slack Integration Info -->
                 <div class="slack-info">
                     <h3>📢 Slack Notifications</h3>
-                    <p>To receive notifications when new sports are added, create a file: <code>/var/www/u1852176/data/www/streaming/config/slack-config.json</code></p>
-                    <p>Content:</p>
-                    <pre style="background: #fff; padding: 10px; border-radius: 4px; overflow-x: auto;">{
-  "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
-}</pre>
+                    <p>To receive notifications when new sports are added, create: <code>/var/www/u1852176/data/www/streaming/config/slack-config.json</code></p>
                 </div>
                 
-                <!-- Add Sport Form -->
                 <div class="add-sport-card">
                     <h3 style="margin-bottom: 20px; color: #2e7d32; font-size: 20px;">➕ Add New Sport Category</h3>
                     <form method="POST" enctype="multipart/form-data">
@@ -699,7 +669,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
                                         <span>📤</span>
                                         <span>Choose Image</span>
                                     </label>
-                                    <input type="file" id="new_sport_icon" name="new_sport_icon" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                                    <input type="file" id="new_sport_icon" name="new_sport_icon" class="file-upload-input" accept=".png,.jpg,.jpeg,.webp,.svg">
                                     <div class="file-name-display" id="newSportFileName">No file chosen</div>
                                 </div>
                             </div>
@@ -709,7 +679,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     </form>
                 </div>
                 
-                <!-- Sports Grid -->
                 <div class="content-section">
                     <div class="section-header">
                         <h2>Current Sports Categories (<?php echo count($sports); ?>)</h2>
@@ -775,11 +744,10 @@ $sportsIcons = $website['sports_icons'] ?? [];
         </main>
     </div>
     
-    <!-- Edit Icon Modal -->
     <div class="modal" id="iconModal">
         <div class="modal-content">
             <h3>Edit Sport Icon</h3>
-            <form method="POST" enctype="multipart/form-data" id="iconForm">
+            <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="edit_icon" value="1">
                 <input type="hidden" name="sport_name" id="iconSportName">
                 
@@ -795,16 +763,18 @@ $sportsIcons = $website['sports_icons'] ?? [];
                             <span>📤</span>
                             <span>Choose New Image</span>
                         </label>
-                        <input type="file" id="sportIconFile" name="sport_icon_file" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                        <input type="file" id="sportIconFile" name="sport_icon_file" class="file-upload-input" accept=".png,.jpg,.jpeg,.webp,.svg">
                         <div class="file-name-display" id="editSportFileName">No file chosen</div>
                     </div>
-                    <small>PNG, WEBP, SVG, AVIF • Auto-resize to 64x64px</small>
+                    <small>PNG, JPG, WEBP, SVG • Auto-resize to 64x64px</small>
                 </div>
                 
-                <div class="modal-actions">
-                    <?php if ($hasIcon): ?>
-                        <button type="submit" name="delete_icon" class="btn btn-danger" onclick="return confirm('Delete this icon?')">Delete Icon</button>
-                    <?php endif; ?>
+                <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+                    <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this icon?');">
+                        <input type="hidden" name="delete_icon" value="1">
+                        <input type="hidden" name="sport_name" id="deleteIconSportName">
+                        <button type="submit" class="btn btn-danger" id="deleteIconBtn" style="display: none;">Delete Icon</button>
+                    </form>
                     <button type="button" class="btn btn-outline" onclick="closeIconModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save Icon</button>
                 </div>
@@ -812,18 +782,17 @@ $sportsIcons = $website['sports_icons'] ?? [];
         </div>
     </div>
     
-    <!-- Rename Modal -->
     <div class="modal" id="renameModal">
         <div class="modal-content">
             <h3>Rename Sport Category</h3>
-            <form method="POST" id="renameForm">
+            <form method="POST">
                 <input type="hidden" name="rename_sport" value="1">
                 <input type="hidden" name="old_sport_name" id="oldSportName">
                 <div class="form-group">
                     <label for="newSportNameInput">New Sport Name</label>
                     <input type="text" id="newSportNameInput" name="new_sport_name" required>
                 </div>
-                <div class="modal-actions">
+                <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
                     <button type="button" class="btn btn-outline" onclick="closeRenameModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Rename</button>
                 </div>
@@ -843,7 +812,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             const fileName = e.target.files[0]?.name || 'No file chosen';
             document.getElementById('editSportFileName').textContent = fileName;
             
-            // Show preview
             if (e.target.files[0]) {
                 const reader = new FileReader();
                 reader.onload = function(event) {
@@ -855,33 +823,35 @@ $sportsIcons = $website['sports_icons'] ?? [];
             }
         });
         
-        // Icon Modal Functions
         function openIconModal(sportName, currentIcon) {
             document.getElementById('iconSportName').value = sportName;
+            document.getElementById('deleteIconSportName').value = sportName;
             
             const preview = document.getElementById('iconPreviewContainer');
             const iconName = document.getElementById('currentIconName');
+            const deleteBtn = document.getElementById('deleteIconBtn');
             
             if (currentIcon) {
                 preview.innerHTML = '<img src="/images/sports/' + currentIcon + '" alt="' + sportName + '">';
                 preview.classList.remove('no-icon');
                 iconName.textContent = 'Current: ' + currentIcon;
+                deleteBtn.style.display = 'inline-block';
             } else {
                 preview.innerHTML = '?';
                 preview.classList.add('no-icon');
                 iconName.textContent = 'No icon';
+                deleteBtn.style.display = 'none';
             }
             
             document.getElementById('editSportFileName').textContent = 'No file chosen';
+            document.getElementById('sportIconFile').value = '';
             document.getElementById('iconModal').classList.add('active');
         }
         
         function closeIconModal() {
             document.getElementById('iconModal').classList.remove('active');
-            document.getElementById('sportIconFile').value = '';
         }
         
-        // Rename Modal Functions
         function openRenameModal(sportName) {
             document.getElementById('oldSportName').value = sportName;
             document.getElementById('newSportNameInput').value = sportName;
@@ -894,7 +864,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
             document.getElementById('renameModal').classList.remove('active');
         }
         
-        // Close modals on outside click
         document.getElementById('iconModal').addEventListener('click', function(e) {
             if (e.target === this) closeIconModal();
         });
