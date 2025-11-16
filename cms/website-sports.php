@@ -150,11 +150,28 @@ function handleImageUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
+// Load website data first
+$configContent = file_get_contents($configFile);
+$configData = json_decode($configContent, true);
+$websites = $configData['websites'] ?? [];
+
+$website = null;
+foreach ($websites as $site) {
+    if ($site['id'] == $websiteId) {
+        $website = $site;
+        break;
+    }
+}
+
+if (!$website) {
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Get preview URL
+$previewDomain = $website['domain'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $configContent = file_get_contents($configFile);
-    $configData = json_decode($configContent, true);
-    $websites = $configData['websites'] ?? [];
-    
     $websiteIndex = null;
     foreach ($websites as $key => $site) {
         if ($site['id'] == $websiteId) {
@@ -299,26 +316,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!file_put_contents($configFile, $jsonContent)) {
                 $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
                 $success = '';
+            } else {
+                // Reload website data after successful save
+                $configContent = file_get_contents($configFile);
+                $configData = json_decode($configContent, true);
+                $websites = $configData['websites'] ?? [];
+                foreach ($websites as $site) {
+                    if ($site['id'] == $websiteId) {
+                        $website = $site;
+                        break;
+                    }
+                }
             }
         }
     }
-}
-
-$configContent = file_get_contents($configFile);
-$configData = json_decode($configContent, true);
-$websites = $configData['websites'] ?? [];
-
-$website = null;
-foreach ($websites as $site) {
-    if ($site['id'] == $websiteId) {
-        $website = $site;
-        break;
-    }
-}
-
-if (!$website) {
-    header('Location: dashboard.php');
-    exit;
 }
 
 $sports = $website['sports_categories'] ?? [];
@@ -693,7 +704,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
                                 <div class="sport-card-header">
                                     <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
                                         <?php if ($hasIcon): ?>
-                                            <img src="/images/sports/<?php echo htmlspecialchars($iconFile); ?>" alt="<?php echo htmlspecialchars($sport); ?>">
+                                            <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/sports/<?php echo htmlspecialchars($iconFile); ?>" alt="<?php echo htmlspecialchars($sport); ?>" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('no-icon');">
                                         <?php else: ?>
                                             ?
                                         <?php endif; ?>
@@ -801,6 +812,8 @@ $sportsIcons = $website['sports_icons'] ?? [];
     </div>
     
     <script>
+        const previewDomain = '<?php echo htmlspecialchars($previewDomain); ?>';
+        
         // File upload preview for new sport
         document.getElementById('new_sport_icon').addEventListener('change', function(e) {
             const fileName = e.target.files[0]?.name || 'No file chosen';
@@ -832,7 +845,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
             const deleteBtn = document.getElementById('deleteIconBtn');
             
             if (currentIcon) {
-                preview.innerHTML = '<img src="/images/sports/' + currentIcon + '" alt="' + sportName + '">';
+                preview.innerHTML = '<img src="https://' + previewDomain + '/images/sports/' + currentIcon + '" alt="' + sportName + '" onerror="this.parentElement.innerHTML=\'?\'; this.parentElement.classList.add(\'no-icon\');">';
                 preview.classList.remove('no-icon');
                 iconName.textContent = 'Current: ' + currentIcon;
                 deleteBtn.style.display = 'inline-block';

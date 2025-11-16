@@ -122,11 +122,28 @@ function handleLogoUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
+// Load website data first
+$configContent = file_get_contents($configFile);
+$configData = json_decode($configContent, true);
+$websites = $configData['websites'] ?? [];
+
+$website = null;
+foreach ($websites as $site) {
+    if ($site['id'] == $websiteId) {
+        $website = $site;
+        break;
+    }
+}
+
+if (!$website) {
+    header('Location: dashboard.php');
+    exit;
+}
+
+// Get preview URL - use the first active website domain or current website domain
+$previewDomain = $website['domain'];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $configContent = file_get_contents($configFile);
-    $configData = json_decode($configContent, true);
-    $websites = $configData['websites'] ?? [];
-    
     $siteName = trim($_POST['site_name'] ?? '');
     $domain = trim($_POST['domain'] ?? '');
     $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
@@ -136,8 +153,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($siteName && $domain) {
         $updated = false;
-        foreach ($websites as $key => $website) {
-            if ($website['id'] == $websiteId) {
+        foreach ($websites as $key => $site) {
+            if ($site['id'] == $websiteId) {
                 // Handle logo upload if new file provided
                 if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                     $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir);
@@ -147,6 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             unlink($uploadDir . $website['logo']);
                         }
                         $websites[$key]['logo'] = $uploadResult['filename'];
+                        $website['logo'] = $uploadResult['filename']; // Update current website variable
                     } else {
                         $error = $uploadResult['error'];
                     }
@@ -160,6 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $websites[$key]['language'] = $language;
                     $websites[$key]['status'] = $status;
                     $updated = true;
+                    $previewDomain = $domain; // Update preview domain
                 }
                 break;
             }
@@ -180,23 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $error = 'Please fill all required fields';
     }
-}
-
-$configContent = file_get_contents($configFile);
-$configData = json_decode($configContent, true);
-$websites = $configData['websites'] ?? [];
-
-$website = null;
-foreach ($websites as $site) {
-    if ($site['id'] == $websiteId) {
-        $website = $site;
-        break;
-    }
-}
-
-if (!$website) {
-    header('Location: dashboard.php');
-    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -314,7 +316,7 @@ if (!$website) {
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) ? 'empty' : ''; ?>">
                                     <?php if (!empty($website['logo'])): ?>
-                                        <img src="/images/logos/<?php echo htmlspecialchars($website['logo']); ?>" alt="Current Logo">
+                                        <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/logos/<?php echo htmlspecialchars($website['logo']); ?>" alt="Current Logo" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
                                     <?php else: ?>
                                         ?
                                     <?php endif; ?>
