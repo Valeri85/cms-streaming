@@ -27,8 +27,9 @@ if (!file_exists($uploadDir)) {
 }
 
 function handleLogoUpload($file, $uploadDir) {
-    $allowedTypes = ['image/png', 'image/webp', 'image/svg+xml'];
-    $allowedExtensions = ['png', 'webp', 'svg'];
+    // ONLY WEBP, SVG, AVIF allowed
+    $allowedTypes = ['image/webp', 'image/svg+xml'];
+    $allowedExtensions = ['webp', 'svg'];
     
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         return ['error' => 'No file uploaded'];
@@ -45,7 +46,7 @@ function handleLogoUpload($file, $uploadDir) {
     }
     
     if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only PNG, WEBP, SVG, AVIF allowed'];
+        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
     }
     
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -56,15 +57,12 @@ function handleLogoUpload($file, $uploadDir) {
     $filename = uniqid('logo_', true) . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    if (in_array($extension, ['png', 'webp', 'avif'])) {
+    if (in_array($extension, ['webp', 'avif'])) {
         if (!extension_loaded('gd')) {
             return ['error' => 'GD extension not available'];
         }
         
         switch ($extension) {
-            case 'png':
-                $sourceImage = @imagecreatefrompng($file['tmp_name']);
-                break;
             case 'webp':
                 $sourceImage = @imagecreatefromwebp($file['tmp_name']);
                 break;
@@ -83,12 +81,10 @@ function handleLogoUpload($file, $uploadDir) {
         
         $targetImage = imagecreatetruecolor(64, 64);
         
-        if ($extension === 'png' || $extension === 'webp') {
-            imagealphablending($targetImage, false);
-            imagesavealpha($targetImage, true);
-            $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-            imagefill($targetImage, 0, 0, $transparent);
-        }
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
         
         imagecopyresampled(
             $targetImage, $sourceImage,
@@ -98,9 +94,6 @@ function handleLogoUpload($file, $uploadDir) {
         );
         
         switch ($extension) {
-            case 'png':
-                imagepng($targetImage, $filepath, 9);
-                break;
             case 'webp':
                 imagewebp($targetImage, $filepath, 90);
                 break;
@@ -316,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) ? 'empty' : ''; ?>">
                                     <?php if (!empty($website['logo'])): ?>
-                                        <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/logos/<?php echo htmlspecialchars($website['logo']); ?>" alt="Current Logo" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
+                                        <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/logos/<?php echo htmlspecialchars($website['logo']); ?>" alt="Current Logo" id="currentLogoImg">
                                     <?php else: ?>
                                         ?
                                     <?php endif; ?>
@@ -326,12 +319,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <span>📤</span>
                                         <span><?php echo empty($website['logo']) ? 'Choose Logo' : 'Change Logo'; ?></span>
                                     </label>
-                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".webp,.svg,.avif">
                                     <div class="file-name-display" id="logoFileName">
                                         <?php echo !empty($website['logo']) ? htmlspecialchars($website['logo']) : 'No file chosen'; ?>
                                     </div>
                                 </div>
-                                <small>PNG, WEBP, SVG, AVIF • Recommended: 64x64px • Leave empty to keep current logo</small>
+                                <small>WEBP, SVG, AVIF • Recommended: 64x64px • Leave empty to keep current logo</small>
                             </div>
                             
                             <div class="form-group">
@@ -402,7 +395,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const reader = new FileReader();
                 reader.onload = function(event) {
                     const preview = document.getElementById('logoPreview');
-                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Logo Preview">';
+                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Logo Preview" id="currentLogoImg">';
                     preview.classList.remove('empty');
                 };
                 reader.readAsDataURL(e.target.files[0]);

@@ -26,10 +26,10 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// Function to handle logo upload
+// Function to handle logo upload - ONLY WEBP, SVG, AVIF
 function handleLogoUpload($file, $uploadDir) {
-    $allowedTypes = ['image/png', 'image/webp', 'image/svg+xml'];
-    $allowedExtensions = ['png', 'webp', 'svg'];
+    $allowedTypes = ['image/webp', 'image/svg+xml'];
+    $allowedExtensions = ['webp', 'svg'];
     
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         return ['error' => 'No file uploaded'];
@@ -47,7 +47,7 @@ function handleLogoUpload($file, $uploadDir) {
     }
     
     if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only PNG, WEBP, SVG, AVIF allowed'];
+        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
     }
     
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -58,16 +58,13 @@ function handleLogoUpload($file, $uploadDir) {
     $filename = uniqid('logo_', true) . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    // For raster images (PNG, WEBP, AVIF), resize to 64x64
-    if (in_array($extension, ['png', 'webp', 'avif'])) {
+    // For raster images (WEBP, AVIF), resize to 64x64
+    if (in_array($extension, ['webp', 'avif'])) {
         if (!extension_loaded('gd')) {
             return ['error' => 'GD extension not available'];
         }
         
         switch ($extension) {
-            case 'png':
-                $sourceImage = @imagecreatefrompng($file['tmp_name']);
-                break;
             case 'webp':
                 $sourceImage = @imagecreatefromwebp($file['tmp_name']);
                 break;
@@ -86,12 +83,10 @@ function handleLogoUpload($file, $uploadDir) {
         
         $targetImage = imagecreatetruecolor(64, 64);
         
-        if ($extension === 'png' || $extension === 'webp') {
-            imagealphablending($targetImage, false);
-            imagesavealpha($targetImage, true);
-            $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-            imagefill($targetImage, 0, 0, $transparent);
-        }
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
         
         imagecopyresampled(
             $targetImage, $sourceImage,
@@ -101,9 +96,6 @@ function handleLogoUpload($file, $uploadDir) {
         );
         
         switch ($extension) {
-            case 'png':
-                imagepng($targetImage, $filepath, 9);
-                break;
             case 'webp':
                 imagewebp($targetImage, $filepath, 90);
                 break;
@@ -365,10 +357,10 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                                         <span>📤</span>
                                         <span>Choose Logo</span>
                                     </label>
-                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".png,.webp,.svg,.avif">
+                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".webp,.svg,.avif">
                                     <div class="file-name-display" id="logoFileName">No file chosen</div>
                                 </div>
-                                <small>PNG, WEBP, SVG, AVIF • Recommended: 64x64px</small>
+                                <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
                             </div>
                             
                             <div class="form-group">

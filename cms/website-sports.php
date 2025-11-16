@@ -64,9 +64,10 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
+// ONLY WEBP, SVG, AVIF allowed
 function handleImageUpload($file, $uploadDir) {
-    $allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
-    $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp', 'svg'];
+    $allowedTypes = ['image/webp', 'image/svg+xml'];
+    $allowedExtensions = ['webp', 'svg'];
     
     if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
         return ['error' => 'No file uploaded'];
@@ -76,8 +77,15 @@ function handleImageUpload($file, $uploadDir) {
     $mimeType = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     
+    // Check AVIF
+    if (strpos($file['name'], '.avif') !== false) {
+        $mimeType = 'image/avif';
+        $allowedTypes[] = 'image/avif';
+        $allowedExtensions[] = 'avif';
+    }
+    
     if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only PNG, JPG, WEBP, SVG allowed'];
+        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
     }
     
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -88,21 +96,21 @@ function handleImageUpload($file, $uploadDir) {
     $filename = uniqid('sport_', true) . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    if (in_array($extension, ['png', 'jpg', 'jpeg', 'webp'])) {
+    if (in_array($extension, ['webp', 'avif'])) {
         if (!extension_loaded('gd')) {
             return ['error' => 'GD extension not available'];
         }
         
         switch ($extension) {
-            case 'png':
-                $sourceImage = @imagecreatefrompng($file['tmp_name']);
-                break;
-            case 'jpg':
-            case 'jpeg':
-                $sourceImage = @imagecreatefromjpeg($file['tmp_name']);
-                break;
             case 'webp':
                 $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+                break;
+            case 'avif':
+                if (function_exists('imagecreatefromavif')) {
+                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
+                } else {
+                    return ['error' => 'AVIF format not supported'];
+                }
                 break;
         }
         
@@ -112,12 +120,10 @@ function handleImageUpload($file, $uploadDir) {
         
         $targetImage = imagecreatetruecolor(64, 64);
         
-        if ($extension === 'png' || $extension === 'webp') {
-            imagealphablending($targetImage, false);
-            imagesavealpha($targetImage, true);
-            $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-            imagefill($targetImage, 0, 0, $transparent);
-        }
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
         
         imagecopyresampled(
             $targetImage, $sourceImage,
@@ -127,15 +133,13 @@ function handleImageUpload($file, $uploadDir) {
         );
         
         switch ($extension) {
-            case 'png':
-                imagepng($targetImage, $filepath, 9);
-                break;
-            case 'jpg':
-            case 'jpeg':
-                imagejpeg($targetImage, $filepath, 90);
-                break;
             case 'webp':
                 imagewebp($targetImage, $filepath, 90);
+                break;
+            case 'avif':
+                if (function_exists('imageavif')) {
+                    imageavif($targetImage, $filepath, 90);
+                }
                 break;
         }
         
@@ -654,7 +658,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
                 
                 <div class="icon-info">
                     <h3>📁 Sport Icon Upload</h3>
-                    <p><strong>✅ Supported formats:</strong> PNG, JPG, WEBP, SVG</p>
+                    <p><strong>✅ Supported formats:</strong> WEBP, SVG, AVIF only</p>
                     <p><strong>📐 Auto-resize:</strong> Images will be automatically resized to 64x64px (except SVG)</p>
                     <p><strong>💡 Tip:</strong> Use transparent backgrounds for best results</p>
                 </div>
@@ -680,7 +684,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
                                         <span>📤</span>
                                         <span>Choose Image</span>
                                     </label>
-                                    <input type="file" id="new_sport_icon" name="new_sport_icon" class="file-upload-input" accept=".png,.jpg,.jpeg,.webp,.svg">
+                                    <input type="file" id="new_sport_icon" name="new_sport_icon" class="file-upload-input" accept=".webp,.svg,.avif">
                                     <div class="file-name-display" id="newSportFileName">No file chosen</div>
                                 </div>
                             </div>
@@ -700,11 +704,11 @@ $sportsIcons = $website['sports_icons'] ?? [];
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
                         ?>
-                            <div class="sport-card">
+                            <div class="sport-card" data-sport-name="<?php echo htmlspecialchars($sport); ?>">
                                 <div class="sport-card-header">
-                                    <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
+                                    <div class="sport-icon-display card-icon-preview <?php echo $hasIcon ? '' : 'no-icon'; ?>" data-sport-name="<?php echo htmlspecialchars($sport); ?>">
                                         <?php if ($hasIcon): ?>
-                                            <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/sports/<?php echo htmlspecialchars($iconFile); ?>" alt="<?php echo htmlspecialchars($sport); ?>" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('no-icon');">
+                                            <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/sports/<?php echo htmlspecialchars($iconFile); ?>" alt="<?php echo htmlspecialchars($sport); ?>">
                                         <?php else: ?>
                                             ?
                                         <?php endif; ?>
@@ -758,7 +762,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <div class="modal" id="iconModal">
         <div class="modal-content">
             <h3>Edit Sport Icon</h3>
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" id="iconForm">
                 <input type="hidden" name="edit_icon" value="1">
                 <input type="hidden" name="sport_name" id="iconSportName">
                 
@@ -774,10 +778,10 @@ $sportsIcons = $website['sports_icons'] ?? [];
                             <span>📤</span>
                             <span>Choose New Image</span>
                         </label>
-                        <input type="file" id="sportIconFile" name="sport_icon_file" class="file-upload-input" accept=".png,.jpg,.jpeg,.webp,.svg">
+                        <input type="file" id="sportIconFile" name="sport_icon_file" class="file-upload-input" accept=".webp,.svg,.avif">
                         <div class="file-name-display" id="editSportFileName">No file chosen</div>
                     </div>
-                    <small>PNG, JPG, WEBP, SVG • Auto-resize to 64x64px</small>
+                    <small>WEBP, SVG, AVIF • Auto-resize to 64x64px</small>
                 </div>
                 
                 <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
@@ -813,6 +817,8 @@ $sportsIcons = $website['sports_icons'] ?? [];
     
     <script>
         const previewDomain = '<?php echo htmlspecialchars($previewDomain); ?>';
+        let currentEditingSport = '';
+        let newUploadedIconUrl = '';
         
         // File upload preview for new sport
         document.getElementById('new_sport_icon').addEventListener('change', function(e) {
@@ -831,12 +837,18 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     const preview = document.getElementById('iconPreviewContainer');
                     preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview">';
                     preview.classList.remove('no-icon');
+                    
+                    // Store the preview URL for updating card later
+                    newUploadedIconUrl = event.target.result;
                 };
                 reader.readAsDataURL(e.target.files[0]);
             }
         });
         
         function openIconModal(sportName, currentIcon) {
+            currentEditingSport = sportName;
+            newUploadedIconUrl = '';
+            
             document.getElementById('iconSportName').value = sportName;
             document.getElementById('deleteIconSportName').value = sportName;
             
@@ -845,7 +857,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
             const deleteBtn = document.getElementById('deleteIconBtn');
             
             if (currentIcon) {
-                preview.innerHTML = '<img src="https://' + previewDomain + '/images/sports/' + currentIcon + '" alt="' + sportName + '" onerror="this.parentElement.innerHTML=\'?\'; this.parentElement.classList.add(\'no-icon\');">';
+                preview.innerHTML = '<img src="https://' + previewDomain + '/images/sports/' + currentIcon + '" alt="' + sportName + '">';
                 preview.classList.remove('no-icon');
                 iconName.textContent = 'Current: ' + currentIcon;
                 deleteBtn.style.display = 'inline-block';
@@ -862,7 +874,34 @@ $sportsIcons = $website['sports_icons'] ?? [];
         }
         
         function closeIconModal() {
+            // Update the card icon preview if a new icon was uploaded
+            if (newUploadedIconUrl && currentEditingSport) {
+                updateCardIconPreview(currentEditingSport, newUploadedIconUrl);
+            }
+            
             document.getElementById('iconModal').classList.remove('active');
+            currentEditingSport = '';
+            newUploadedIconUrl = '';
+        }
+        
+        function updateCardIconPreview(sportName, iconUrl) {
+            // Find the card for this sport
+            const cards = document.querySelectorAll('.sport-card');
+            cards.forEach(card => {
+                if (card.dataset.sportName === sportName) {
+                    const iconPreview = card.querySelector('.card-icon-preview');
+                    if (iconPreview) {
+                        iconPreview.innerHTML = '<img src="' + iconUrl + '" alt="' + sportName + '">';
+                        iconPreview.classList.remove('no-icon');
+                        
+                        // Update the meta info
+                        const meta = card.querySelector('.sport-card-meta');
+                        if (meta) {
+                            meta.innerHTML = '<span>✅ Has icon</span><span>•</span><span>Updated</span>';
+                        }
+                    }
+                }
+            });
         }
         
         function openRenameModal(sportName) {
@@ -883,6 +922,12 @@ $sportsIcons = $website['sports_icons'] ?? [];
         
         document.getElementById('renameModal').addEventListener('click', function(e) {
             if (e.target === this) closeRenameModal();
+        });
+        
+        // Handle form submission to update card preview
+        document.getElementById('iconForm').addEventListener('submit', function(e) {
+            // The form will submit normally, but we'll update the preview when modal closes
+            // This happens after page reload, so the server data will be fresh
         });
     </script>
 </body>
