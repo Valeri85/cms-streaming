@@ -10,11 +10,15 @@ $error = '';
 $success = '';
 
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
-$dataFile = '/var/www/u1852176/data/www/data/data.json';
+$masterSportsFile = '/var/www/u1852176/data/www/streaming/config/master-sports.json';
 $uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
+}
+
+if (!file_exists($masterSportsFile)) {
+    die("Master sports file not found at: " . $masterSportsFile);
 }
 
 // Create upload directory if it doesn't exist
@@ -122,28 +126,25 @@ function handleLogoUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
-// Function to get all sports from data.json
-function getAllSportsFromData($dataFile) {
-    if (!file_exists($dataFile)) {
-        return [];
+// Function to get sports from existing websites or create default list
+function getSportsListForNewWebsite($websites) {
+    // If there are existing websites, copy sports from the first one
+    if (!empty($websites)) {
+        $firstWebsite = $websites[0];
+        return $firstWebsite['sports_categories'] ?? [];
     }
     
-    $jsonContent = file_get_contents($dataFile);
-    $data = json_decode($jsonContent, true);
-    $games = $data['games'] ?? [];
-    
-    $sports = [];
-    foreach ($games as $game) {
-        $sport = $game['sport'] ?? '';
-        if ($sport && !in_array($sport, $sports)) {
-            $sports[] = $sport;
-        }
-    }
-    
-    // Sort alphabetically
-    sort($sports);
-    
-    return $sports;
+    // If no websites exist, return default comprehensive list
+    return [
+        'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
+        'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
+        'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
+        'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
+        'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
+        'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
+        'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
+        'Chess', 'E-sports', 'Others'
+    ];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -193,8 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $newId = $maxId + 1;
                 
-                // Get all sports from data.json
-                $allSports = getAllSportsFromData($dataFile);
+                // Get sports list from existing websites or default list
+                $sportsList = getSportsListForNewWebsite($websites);
                 
                 // Add new website
                 $newWebsite = [
@@ -209,7 +210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'language' => $language,
                     'sidebar_content' => '', // Empty
                     'status' => $status,
-                    'sports_categories' => $allSports,
+                    'sports_categories' => $sportsList,
                     'sports_icons' => []
                 ];
                 
@@ -220,8 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
                 if (file_put_contents($configFile, $jsonContent)) {
-                    $sportsCount = count($allSports);
-                    $success = "Website added successfully with {$sportsCount} sports from data.json!";
+                    $sportsCount = count($sportsList);
+                    $success = "Website added successfully with {$sportsCount} sport categories!";
                     // Clear form
                     $_POST = [];
                 } else {
@@ -234,8 +235,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get current sports count from data.json for display
-$currentSportsCount = count(getAllSportsFromData($dataFile));
+// Get current sports count for display
+$configContent = file_get_contents($configFile);
+$configData = json_decode($configContent, true);
+$existingWebsites = $configData['websites'] ?? [];
+$currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -414,7 +418,11 @@ $currentSportsCount = count(getAllSportsFromData($dataFile));
                     <div class="form-section" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
                         <h3 style="color: #1565c0;">ℹ️ What happens after you create the website?</h3>
                         <ul style="margin-left: 20px; color: #424242;">
-                            <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> sport categories</strong> from current data.json</li>
+                            <?php if (!empty($existingWebsites)): ?>
+                                <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> sport categories</strong> (copied from your first website)</li>
+                            <?php else: ?>
+                                <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> default sport categories</strong></li>
+                            <?php endif; ?>
                             <li style="margin-bottom: 10px;">✅ SEO settings will be empty (you can configure later)</li>
                             <li style="margin-bottom: 10px;">✅ Sidebar content will be empty (you can configure later)</li>
                             <li style="margin-bottom: 10px;">📝 You can customize everything from the dashboard:
