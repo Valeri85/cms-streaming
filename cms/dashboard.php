@@ -40,6 +40,20 @@ if (isset($_SESSION['delete_success'])) {
     $successMessage = $_SESSION['delete_success'];
     unset($_SESSION['delete_success']);
 }
+
+// Function to render logo (image or emoji)
+function renderLogoPreview($logo, $domain) {
+    // Check if logo contains file extension (is a file)
+    if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $logo)) {
+        // It's an image file
+        $logoFile = htmlspecialchars($logo);
+        $logoUrl = 'https://' . htmlspecialchars($domain) . '/images/logos/' . $logoFile;
+        return '<img src="' . $logoUrl . '?v=' . time() . '" alt="Logo" class="logo-preview-img" style="width: 32px; height: 32px; object-fit: contain; vertical-align: middle; margin-right: 8px; border-radius: 4px;" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline\';">';
+    } else {
+        // It's an emoji or text
+        return '<span class="site-logo">' . htmlspecialchars($logo) . '</span>';
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -53,6 +67,11 @@ if (isset($_SESSION['delete_success'])) {
             display: flex;
             gap: 5px;
             flex-wrap: wrap;
+        }
+        .logo-with-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
     </style>
 </head>
@@ -145,13 +164,15 @@ if (isset($_SESSION['delete_success'])) {
                                     <?php foreach ($websites as $website): ?>
                                         <tr>
                                             <td>
-                                                <a href="http://<?php echo htmlspecialchars($website['domain']); ?>" target="_blank" class="domain-link">
+                                                <a href="https://<?php echo htmlspecialchars($website['domain']); ?>" target="_blank" class="domain-link">
                                                     <?php echo htmlspecialchars($website['domain']); ?>
                                                 </a>
                                             </td>
                                             <td>
-                                                <span class="site-logo"><?php echo $website['logo']; ?></span>
-                                                <?php echo htmlspecialchars($website['site_name']); ?>
+                                                <div class="logo-with-name">
+                                                    <?php echo renderLogoPreview($website['logo'], $website['domain']); ?>
+                                                    <span><?php echo htmlspecialchars($website['site_name']); ?></span>
+                                                </div>
                                             </td>
                                             <td>
                                                 <span class="badge badge-<?php echo $website['status']; ?>">

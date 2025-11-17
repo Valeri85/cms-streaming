@@ -28,9 +28,11 @@ $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
 
 $website = null;
-foreach ($websites as $site) {
+$websiteIndex = null;
+foreach ($websites as $key => $site) {
     if ($site['id'] == $websiteId) {
         $website = $site;
+        $websiteIndex = $key;
         break;
     }
 }
@@ -55,62 +57,61 @@ foreach ($sports as $sportName) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Find and update website
-    $updated = false;
-    foreach ($websites as $key => $site) {
-        if ($site['id'] == $websiteId) {
-            // Initialize pages_seo if it doesn't exist
-            if (!isset($websites[$key]['pages_seo'])) {
-                $websites[$key]['pages_seo'] = [];
-            }
-            
-            // Update home page SEO
-            $websites[$key]['pages_seo']['home'] = [
-                'title' => trim($_POST['home_title'] ?? ''),
-                'description' => trim($_POST['home_description'] ?? '')
-            ];
-            
-            // Update favorites page SEO
-            $websites[$key]['pages_seo']['favorites'] = [
-                'title' => trim($_POST['favorites_title'] ?? ''),
-                'description' => trim($_POST['favorites_description'] ?? '')
-            ];
-            
-            // Update sports pages SEO
-            if (!isset($websites[$key]['pages_seo']['sports'])) {
-                $websites[$key]['pages_seo']['sports'] = [];
-            }
-            
-            foreach ($sportsArray as $sport) {
-                $slug = $sport['slug'];
-                $websites[$key]['pages_seo']['sports'][$slug] = [
-                    'title' => trim($_POST['sport_title_' . $slug] ?? ''),
-                    'description' => trim($_POST['sport_description_' . $slug] ?? '')
-                ];
-            }
-            
-            $updated = true;
-            break;
-        }
+    // Initialize pages_seo if it doesn't exist
+    if (!isset($websites[$websiteIndex]['pages_seo'])) {
+        $websites[$websiteIndex]['pages_seo'] = [];
     }
     
-    if ($updated) {
-        $configData['websites'] = $websites;
+    // Update home page SEO
+    $websites[$websiteIndex]['pages_seo']['home'] = [
+        'title' => trim($_POST['home_title'] ?? ''),
+        'description' => trim($_POST['home_description'] ?? '')
+    ];
+    
+    // Update favorites page SEO
+    $websites[$websiteIndex]['pages_seo']['favorites'] = [
+        'title' => trim($_POST['favorites_title'] ?? ''),
+        'description' => trim($_POST['favorites_description'] ?? '')
+    ];
+    
+    // Update sports pages SEO
+    if (!isset($websites[$websiteIndex]['pages_seo']['sports'])) {
+        $websites[$websiteIndex]['pages_seo']['sports'] = [];
+    }
+    
+    foreach ($sportsArray as $sport) {
+        $slug = $sport['slug'];
+        $websites[$websiteIndex]['pages_seo']['sports'][$slug] = [
+            'title' => trim($_POST['sport_title_' . $slug] ?? ''),
+            'description' => trim($_POST['sport_description_' . $slug] ?? '')
+        ];
+    }
+    
+    $configData['websites'] = $websites;
+    
+    // Save to JSON with pretty print
+    $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    
+    if (file_put_contents($configFile, $jsonContent)) {
+        $success = 'SEO settings updated successfully for all ' . (count($sportsArray) + 2) . ' pages!';
         
-        // Save to JSON with pretty print
-        $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        
-        if (file_put_contents($configFile, $jsonContent)) {
-            $success = 'SEO settings updated successfully for all ' . count($sportsArray) . ' sports pages!';
-        } else {
-            $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
+        // CRITICAL: Reload website data after save to repopulate form
+        $configContent = file_get_contents($configFile);
+        $configData = json_decode($configContent, true);
+        $websites = $configData['websites'] ?? [];
+        foreach ($websites as $key => $site) {
+            if ($site['id'] == $websiteId) {
+                $website = $site;
+                $websiteIndex = $key;
+                break;
+            }
         }
     } else {
-        $error = 'Website not found';
+        $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
     }
 }
 
-// Get current SEO settings or set defaults
+// Get current SEO settings or set defaults - AFTER potential reload
 $pagesSeo = $website['pages_seo'] ?? [];
 $homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => ''];
 $favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => ''];

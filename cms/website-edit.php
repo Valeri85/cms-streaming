@@ -308,9 +308,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-group">
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) ? 'empty' : ''; ?>">
-                                    <?php if (!empty($website['logo'])): ?>
-                                        <img src="https://<?php echo htmlspecialchars($previewDomain); ?>/images/logos/<?php echo htmlspecialchars($website['logo']); ?>" alt="Current Logo" id="currentLogoImg">
-                                    <?php else: ?>
+                                    <?php if (!empty($website['logo'])): 
+                                        // Check if logo is a file or emoji
+                                        if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $website['logo'])) {
+                                            // It's a file - use full URL with https://
+                                            $logoUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/logos/' . htmlspecialchars($website['logo']);
+                                    ?>
+                                        <img src="<?php echo $logoUrl; ?>?v=<?php echo time(); ?>" alt="Current Logo" id="currentLogoImg" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
+                                    <?php 
+                                        } else {
+                                            // It's an emoji
+                                            echo htmlspecialchars($website['logo']);
+                                        }
+                                    else: ?>
                                         ?
                                     <?php endif; ?>
                                 </div>
