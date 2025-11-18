@@ -170,7 +170,7 @@ function renderLogoPreview($logo) {
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
-                                                    <a href="website-edit.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Edit</a>
+                                                    <a href="website-edit.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Settings</a>
                                                     <a href="website-sports.php?id=<?php echo $website['id']; ?>" class="btn btn-sm" style="background: #27ae60; color: white;">Sports</a>
                                                     <a href="website-seo.php?id=<?php echo $website['id']; ?>" class="btn btn-sm" style="background: #3498db; color: white;">SEO</a>
                                                     <a href="website-delete.php?id=<?php echo $website['id']; ?>" class="btn btn-sm btn-danger">Delete</a>

@@ -26,13 +26,16 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// NEW FUNCTION: Convert site name to safe filename
+// UPDATED FUNCTION: Now adds "-logo" suffix to filename
 function sanitizeSiteName($siteName) {
     $filename = strtolower($siteName);
     $filename = str_replace(' ', '-', $filename);
     $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
     $filename = preg_replace('/-+/', '-', $filename);
     $filename = trim($filename, '-');
+    
+    // Add "-logo" suffix
+    $filename = $filename . '-logo';
     
     return $filename;
 }
@@ -306,28 +309,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Logo Image</label>
-                                <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) ? 'empty' : ''; ?>">
-                                    <?php if (!empty($website['logo'])): 
-                                        if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $website['logo'])) {
-                                            $logoUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/logos/' . htmlspecialchars($website['logo']);
+                                <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) || !preg_match('/\.(webp|svg|avif)$/i', $website['logo']) ? 'empty' : ''; ?>">
+                                    <?php if (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])): 
+                                        // FIXED: Correct URL construction for logo preview
+                                        $logoUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/logos/' . htmlspecialchars($website['logo']);
                                     ?>
                                         <img src="<?php echo $logoUrl; ?>?v=<?php echo time(); ?>" alt="Current Logo" id="currentLogoImg" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
-                                    <?php 
-                                        } else {
-                                            echo htmlspecialchars($website['logo']);
-                                        }
-                                    else: ?>
+                                    <?php else: ?>
                                         ?
                                     <?php endif; ?>
                                 </div>
                                 <div class="file-upload-wrapper">
                                     <label for="logo_file" class="file-upload-label">
                                         <span>📤</span>
-                                        <span><?php echo empty($website['logo']) ? 'Choose Logo' : 'Change Logo'; ?></span>
+                                        <span><?php echo (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])) ? 'Change Logo' : 'Choose Logo'; ?></span>
                                     </label>
                                     <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".webp,.svg,.avif">
                                     <div class="file-name-display" id="logoFileName">
-                                        <?php echo !empty($website['logo']) ? htmlspecialchars($website['logo']) : 'No file chosen'; ?>
+                                        <?php echo (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])) ? htmlspecialchars($website['logo']) : 'No file chosen'; ?>
                                     </div>
                                 </div>
                                 <small>WEBP, SVG, AVIF • Recommended: 64x64px • Leave empty to keep current logo</small>

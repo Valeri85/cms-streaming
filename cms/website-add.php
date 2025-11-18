@@ -25,7 +25,7 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// NEW FUNCTION: Convert site name to safe filename
+// UPDATED FUNCTION: Now adds "-logo" suffix to filename
 function sanitizeSiteName($siteName) {
     // Convert to lowercase
     $filename = strtolower($siteName);
@@ -37,6 +37,9 @@ function sanitizeSiteName($siteName) {
     $filename = preg_replace('/-+/', '-', $filename);
     // Trim hyphens from start/end
     $filename = trim($filename, '-');
+    
+    // Add "-logo" suffix
+    $filename = $filename . '-logo';
     
     return $filename;
 }
@@ -297,9 +300,9 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                     <h3>📝 Logo File Naming</h3>
                     <p><strong>Logos are now saved with meaningful names based on site name:</strong></p>
                     <ul style="margin: 10px 0 0 20px;">
-                        <li>"SportLemons" → <code>sportlemons.webp</code></li>
-                        <li>"Watch Live Sport" → <code>watch-live-sport.webp</code></li>
-                        <li>"My Sports TV" → <code>my-sports-tv.svg</code></li>
+                        <li>"SportLemons" → <code>sportlemons-logo.webp</code></li>
+                        <li>"Watch Live Sport" → <code>watch-live-sport-logo.webp</code></li>
+                        <li>"My Sports TV" → <code>my-sports-tv-logo.svg</code></li>
                     </ul>
                 </div>
                 
