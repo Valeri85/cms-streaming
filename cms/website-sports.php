@@ -434,42 +434,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <title>Manage Sports - <?php echo htmlspecialchars($website['site_name']); ?></title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/website-sports.css">
-    <style>
-        .drag-handle {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            cursor: move;
-            font-size: 20px;
-            color: #95a5a6;
-            padding: 5px;
-            user-select: none;
-            transition: color 0.3s;
-        }
-        
-        .drag-handle:hover {
-            color: #3498db;
-        }
-        
-        .sport-card {
-            position: relative;
-            cursor: grab;
-        }
-        
-        .sport-card:active {
-            cursor: grabbing;
-        }
-        
-        .sport-card.dragging {
-            opacity: 0.5;
-            transform: scale(0.95);
-        }
-        
-        .sport-card.drag-over {
-            border: 2px dashed #3498db;
-            background: rgba(52, 152, 219, 0.05);
-        }
-    </style>
 </head>
 <body data-preview-domain="<?php echo htmlspecialchars($previewDomain); ?>">
     <div class="cms-layout">
@@ -551,18 +515,16 @@ $sportsIcons = $website['sports_icons'] ?? [];
                         <?php foreach ($sports as $sport): 
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
-                            $iconPath = $hasIcon ? $uploadDir . $iconFile : '';
-                            $iconExists = $hasIcon && file_exists($iconPath);
-                            $iconUrl = '/images/sports/' . htmlspecialchars($iconFile);
+                            $iconUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($iconFile);
                         ?>
                             <div class="sport-card" data-sport-name="<?php echo htmlspecialchars($sport); ?>" draggable="true">
-                                <div class="drag-handle" title="Drag to reorder">
-                                    <span>⋮⋮</span>
-                                </div>
+                                <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
                                 <div class="sport-card-header">
                                     <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
                                         <?php if ($hasIcon): ?>
-                                            <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" alt="<?php echo htmlspecialchars($sport); ?>" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('no-icon');">
+                                            <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" 
+                                                 alt="<?php echo htmlspecialchars($sport); ?>" 
+                                                 onerror="this.parentElement.classList.add('no-icon'); this.parentElement.innerHTML='?';">
                                         <?php else: ?>
                                             ?
                                         <?php endif; ?>

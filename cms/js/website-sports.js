@@ -81,38 +81,70 @@ document.getElementById('renameModal').addEventListener('click', function (e) {
 });
 
 // ========================================
-// DRAG AND DROP FUNCTIONALITY
+// DRAG AND DROP FUNCTIONALITY WITH AUTO-SCROLL
 // ========================================
 
 let draggedElement = null;
 let draggedIndex = null;
+let autoScrollInterval = null;
 
 function initDragAndDrop() {
+	console.log('🔧 Initializing drag and drop...');
+
 	const sportsGrid = document.getElementById('sportsGrid');
+	if (!sportsGrid) {
+		console.error('❌ Sports grid not found!');
+		return;
+	}
+
 	const sportCards = sportsGrid.querySelectorAll('.sport-card');
+	console.log('📦 Found sport cards:', sportCards.length);
+
+	if (sportCards.length === 0) {
+		console.warn('⚠️ No sport cards to make draggable');
+		return;
+	}
 
 	sportCards.forEach((card, index) => {
+		console.log(`✅ Setting up drag for card ${index}:`, card.dataset.sportName);
+
+		// Make sure draggable attribute is set
+		card.setAttribute('draggable', 'true');
+
 		// Drag start
 		card.addEventListener('dragstart', function (e) {
+			console.log('🎯 Drag started:', this.dataset.sportName);
 			draggedElement = this;
 			draggedIndex = index;
 			this.classList.add('dragging');
+
+			// Set data for drag operation
 			e.dataTransfer.effectAllowed = 'move';
 			e.dataTransfer.setData('text/html', this.innerHTML);
+
+			// Make the drag operation visible
+			this.style.opacity = '0.4';
+
+			// Start auto-scroll monitoring
+			startAutoScroll();
 		});
 
 		// Drag end
 		card.addEventListener('dragend', function (e) {
+			console.log('🏁 Drag ended:', this.dataset.sportName);
 			this.classList.remove('dragging');
+			this.style.opacity = '1';
+
+			// Stop auto-scroll
+			stopAutoScroll();
+
 			// Remove all drag-over classes
 			sportCards.forEach(c => c.classList.remove('drag-over'));
 		});
 
-		// Drag over
+		// Drag over - IMPORTANT: Must prevent default!
 		card.addEventListener('dragover', function (e) {
-			if (e.preventDefault) {
-				e.preventDefault();
-			}
+			e.preventDefault(); // CRITICAL: Allow drop
 			e.dataTransfer.dropEffect = 'move';
 
 			// Add visual feedback
@@ -120,11 +152,15 @@ function initDragAndDrop() {
 				this.classList.add('drag-over');
 			}
 
+			// Update mouse position for auto-scroll
+			updateMousePosition(e);
+
 			return false;
 		});
 
 		// Drag enter
 		card.addEventListener('dragenter', function (e) {
+			e.preventDefault();
 			if (this !== draggedElement) {
 				this.classList.add('drag-over');
 			}
@@ -137,10 +173,10 @@ function initDragAndDrop() {
 
 		// Drop
 		card.addEventListener('drop', function (e) {
-			if (e.stopPropagation) {
-				e.stopPropagation();
-			}
+			e.stopPropagation();
+			e.preventDefault();
 
+			console.log('📍 Dropped on:', this.dataset.sportName);
 			this.classList.remove('drag-over');
 
 			if (draggedElement !== this) {
@@ -152,6 +188,8 @@ function initDragAndDrop() {
 				// Get current positions
 				const draggedPos = allCards.indexOf(draggedCard);
 				const targetPos = allCards.indexOf(targetCard);
+
+				console.log(`📊 Moving from position ${draggedPos} to ${targetPos}`);
 
 				// Reorder DOM
 				if (draggedPos < targetPos) {
@@ -169,20 +207,86 @@ function initDragAndDrop() {
 			return false;
 		});
 	});
+
+	console.log('✅ Drag and drop initialized successfully!');
 }
 
+// ========================================
+// AUTO-SCROLL FUNCTIONALITY
+// ========================================
+
+let mouseY = 0;
+const SCROLL_THRESHOLD = 100; // Distance from edge to trigger scroll (pixels)
+const SCROLL_SPEED = 8; // Pixels per frame
+
+function updateMousePosition(e) {
+	mouseY = e.clientY;
+}
+
+function startAutoScroll() {
+	// Clear any existing interval
+	if (autoScrollInterval) {
+		clearInterval(autoScrollInterval);
+	}
+
+	// Start new interval for smooth scrolling
+	autoScrollInterval = setInterval(() => {
+		if (!draggedElement) {
+			stopAutoScroll();
+			return;
+		}
+
+		const windowHeight = window.innerHeight;
+		const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+		const documentHeight = document.documentElement.scrollHeight;
+
+		// Scroll up when near top
+		if (mouseY < SCROLL_THRESHOLD && scrollTop > 0) {
+			const intensity = (SCROLL_THRESHOLD - mouseY) / SCROLL_THRESHOLD;
+			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
+			window.scrollBy(0, -scrollAmount);
+			console.log('⬆️ Auto-scrolling up:', scrollAmount);
+		}
+
+		// Scroll down when near bottom
+		else if (mouseY > windowHeight - SCROLL_THRESHOLD && scrollTop + windowHeight < documentHeight) {
+			const intensity = (mouseY - (windowHeight - SCROLL_THRESHOLD)) / SCROLL_THRESHOLD;
+			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
+			window.scrollBy(0, scrollAmount);
+			console.log('⬇️ Auto-scrolling down:', scrollAmount);
+		}
+	}, 16); // ~60fps
+}
+
+function stopAutoScroll() {
+	if (autoScrollInterval) {
+		clearInterval(autoScrollInterval);
+		autoScrollInterval = null;
+		console.log('🛑 Auto-scroll stopped');
+	}
+}
+
+// ========================================
+// SAVE NEW ORDER
+// ========================================
+
 function saveNewOrder() {
+	console.log('💾 Saving new order...');
+
 	const sportsGrid = document.getElementById('sportsGrid');
 	const sportCards = sportsGrid.querySelectorAll('.sport-card');
 
 	// Get new order
 	const newOrder = [];
-	sportCards.forEach(card => {
+	sportCards.forEach((card, index) => {
 		const sportName = card.getAttribute('data-sport-name');
 		if (sportName) {
 			newOrder.push(sportName);
+			console.log(`${index + 1}. ${sportName}`);
 		}
 	});
+
+	console.log('📤 Sending order to server:', newOrder);
 
 	// Send to server
 	const formData = new FormData();
@@ -195,11 +299,11 @@ function saveNewOrder() {
 	})
 		.then(response => response.text())
 		.then(html => {
-			// Show success message
+			console.log('✅ Order saved successfully!');
 			showNotification('✅ Sports order updated!', 'success');
 		})
 		.catch(error => {
-			console.error('Error saving order:', error);
+			console.error('❌ Error saving order:', error);
 			showNotification('❌ Failed to save order', 'error');
 		});
 }
@@ -261,7 +365,28 @@ style.textContent = `
 `;
 document.head.appendChild(style);
 
-// Initialize drag and drop when page loads
-document.addEventListener('DOMContentLoaded', function () {
+// ========================================
+// INITIALIZATION - MULTIPLE METHODS
+// ========================================
+
+// Method 1: DOMContentLoaded (standard)
+if (document.readyState === 'loading') {
+	console.log('⏳ Document still loading, waiting for DOMContentLoaded...');
+	document.addEventListener('DOMContentLoaded', initDragAndDrop);
+} else {
+	// Method 2: Document already loaded (fallback)
+	console.log('✅ Document already loaded, initializing immediately...');
 	initDragAndDrop();
-});
+}
+
+// Method 3: Additional fallback with slight delay
+setTimeout(() => {
+	const sportsGrid = document.getElementById('sportsGrid');
+	if (sportsGrid && sportsGrid.querySelectorAll('.sport-card').length > 0) {
+		console.log('🔄 Fallback initialization check...');
+		// Only reinitialize if not already done
+		if (!draggedElement && sportsGrid.querySelectorAll('.sport-card[draggable="true"]').length === 0) {
+			initDragAndDrop();
+		}
+	}
+}, 500);
