@@ -41,13 +41,13 @@ if (isset($_SESSION['delete_success'])) {
     unset($_SESSION['delete_success']);
 }
 
-// Function to render logo (image or emoji)
-function renderLogoPreview($logo, $domain) {
+// REFACTORED: Function to render logo with RELATIVE path
+function renderLogoPreview($logo) {
     // Check if logo contains file extension (is a file)
     if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $logo)) {
-        // It's an image file
+        // It's an image file - RELATIVE PATH
         $logoFile = htmlspecialchars($logo);
-        $logoUrl = 'https://' . htmlspecialchars($domain) . '/images/logos/' . $logoFile;
+        $logoUrl = '/images/logos/' . $logoFile;
         return '<img src="' . $logoUrl . '?v=' . time() . '" alt="Logo" class="logo-preview-img" style="width: 32px; height: 32px; object-fit: contain; vertical-align: middle; margin-right: 8px; border-radius: 4px;" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline\';">';
     } else {
         // It's an emoji or text
@@ -170,7 +170,7 @@ function renderLogoPreview($logo, $domain) {
                                             </td>
                                             <td>
                                                 <div class="logo-with-name">
-                                                    <?php echo renderLogoPreview($website['logo'], $website['domain']); ?>
+                                                    <?php echo renderLogoPreview($website['logo']); ?>
                                                     <span><?php echo htmlspecialchars($website['site_name']); ?></span>
                                                 </div>
                                             </td>
