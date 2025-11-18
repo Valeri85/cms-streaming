@@ -33,7 +33,21 @@ if (!is_writable($uploadDir)) {
     die("Upload directory is not writable: " . $uploadDir . " - Please run: chmod 755 " . $uploadDir);
 }
 
-// ... (keeping all your existing functions - sendSlackNotification, handleImageUpload, etc.)
+// NEW FUNCTION: Convert sport name to safe filename
+function sanitizeSportName($sportName) {
+    // Convert to lowercase
+    $filename = strtolower($sportName);
+    // Replace spaces with hyphens
+    $filename = str_replace(' ', '-', $filename);
+    // Remove any characters that aren't alphanumeric or hyphens
+    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
+    // Remove multiple consecutive hyphens
+    $filename = preg_replace('/-+/', '-', $filename);
+    // Trim hyphens from start/end
+    $filename = trim($filename, '-');
+    
+    return $filename;
+}
 
 function sendSlackNotification($sportName) {
     $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
@@ -73,11 +87,13 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
-function handleImageUpload($file, $uploadDir, &$debugInfo) {
+// UPDATED FUNCTION: Now uses meaningful filename based on sport name
+function handleImageUpload($file, $uploadDir, $sportName, &$debugInfo) {
     global $error;
     
     $debugInfo .= "=== UPLOAD DEBUG START ===\n";
     $debugInfo .= "Upload Dir: $uploadDir\n";
+    $debugInfo .= "Sport Name: $sportName\n";
     $debugInfo .= "Upload Dir Writable: " . (is_writable($uploadDir) ? 'YES' : 'NO') . "\n";
     
     if (!isset($file['tmp_name']) || empty($file['tmp_name'])) {
@@ -137,11 +153,20 @@ function handleImageUpload($file, $uploadDir, &$debugInfo) {
         return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
     }
     
-    $filename = uniqid('sport_', true) . '.' . $extension;
+    // NEW: Create meaningful filename from sport name
+    $sanitizedName = sanitizeSportName($sportName);
+    $filename = $sanitizedName . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
+    $debugInfo .= "Sanitized sport name: $sanitizedName\n";
     $debugInfo .= "Target filename: $filename\n";
     $debugInfo .= "Target filepath: $filepath\n";
+    
+    // NEW: Delete existing file if it exists (to replace old icon)
+    if (file_exists($filepath)) {
+        $debugInfo .= "Old file exists, deleting: $filepath\n";
+        unlink($filepath);
+    }
     
     if (in_array($extension, ['webp', 'avif'])) {
         $debugInfo .= "Processing raster image...\n";
@@ -255,7 +280,6 @@ if (!$website) {
 
 $previewDomain = $website['domain'];
 
-// POST handling code (keeping all your existing POST logic)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $websiteIndex = null;
     foreach ($websites as $key => $site) {
@@ -274,6 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $websites[$websiteIndex]['sports_icons'] = [];
         }
         
+        // ADD NEW SPORT
         if (isset($_POST['add_sport'])) {
             $newSport = trim($_POST['new_sport_name'] ?? '');
             
@@ -282,7 +307,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $websites[$websiteIndex]['sports_categories'][] = $newSport;
                     
                     if (isset($_FILES['new_sport_icon']) && $_FILES['new_sport_icon']['size'] > 0) {
-                        $uploadResult = handleImageUpload($_FILES['new_sport_icon'], $uploadDir, $debugInfo);
+                        $uploadResult = handleImageUpload($_FILES['new_sport_icon'], $uploadDir, $newSport, $debugInfo);
                         if (isset($uploadResult['success'])) {
                             $websites[$websiteIndex]['sports_icons'][$newSport] = $uploadResult['filename'];
                             $success = "✅ Sport category '{$newSport}' added with icon: {$uploadResult['filename']}";
@@ -304,15 +329,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // EDIT ICON (UPLOAD NEW ICON)
         if (isset($_POST['edit_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
             
             if ($sportName && isset($_FILES['sport_icon_file']) && $_FILES['sport_icon_file']['size'] > 0) {
-                $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir, $debugInfo);
+                $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir, $sportName, $debugInfo);
                 if (isset($uploadResult['success'])) {
+                    // Delete old icon file if it exists and is different
                     if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
                         $oldFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
-                        if (file_exists($oldFile)) {
+                        if (file_exists($oldFile) && $oldFile !== $uploadDir . $uploadResult['filename']) {
                             unlink($oldFile);
                             $debugInfo .= "Old icon file deleted: $oldFile\n";
                         }
@@ -328,6 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // DELETE ICON
         if (isset($_POST['delete_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
             
@@ -343,6 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // RENAME SPORT - NEW: Also rename the icon file
         if (isset($_POST['rename_sport'])) {
             $oldName = $_POST['old_sport_name'] ?? '';
             $newName = trim($_POST['new_sport_name'] ?? '');
@@ -353,11 +382,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($index !== false) {
                     if (!in_array($newName, $sports)) {
+                        // Update sport name in array
                         $sports[$index] = $newName;
                         $websites[$websiteIndex]['sports_categories'] = $sports;
                         
+                        // NEW: Rename the icon file if it exists
                         if (isset($websites[$websiteIndex]['sports_icons'][$oldName])) {
-                            $websites[$websiteIndex]['sports_icons'][$newName] = $websites[$websiteIndex]['sports_icons'][$oldName];
+                            $oldIconFile = $websites[$websiteIndex]['sports_icons'][$oldName];
+                            $oldIconPath = $uploadDir . $oldIconFile;
+                            
+                            // Get extension from old file
+                            $extension = pathinfo($oldIconFile, PATHINFO_EXTENSION);
+                            
+                            // Create new filename based on new sport name
+                            $newIconFilename = sanitizeSportName($newName) . '.' . $extension;
+                            $newIconPath = $uploadDir . $newIconFilename;
+                            
+                            // Rename file on disk
+                            if (file_exists($oldIconPath)) {
+                                if (rename($oldIconPath, $newIconPath)) {
+                                    $debugInfo .= "Icon file renamed: $oldIconPath → $newIconPath\n";
+                                }
+                            }
+                            
+                            // Update icon reference in config
+                            $websites[$websiteIndex]['sports_icons'][$newName] = $newIconFilename;
                             unset($websites[$websiteIndex]['sports_icons'][$oldName]);
                         }
                         
@@ -373,6 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // DELETE SPORT
         if (isset($_POST['delete_sport'])) {
             $sportToDelete = $_POST['sport_name'] ?? '';
             
@@ -393,6 +443,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = "✅ Sport category '{$sportToDelete}' deleted";
         }
         
+        // REORDER SPORTS
         if (isset($_POST['reorder_sports'])) {
             $newOrder = json_decode($_POST['sports_order'] ?? '[]', true);
             
@@ -404,6 +455,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // Save changes to config file
         if ($success || $error) {
             $configData['websites'] = $websites;
             $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -412,6 +464,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = '❌ Failed to save changes. Check permissions: chmod 644 ' . $configFile;
                 $success = '';
             } else {
+                // Reload website data
                 $configContent = file_get_contents($configFile);
                 $configData = json_decode($configContent, true);
                 $websites = $configData['websites'] ?? [];
@@ -477,6 +530,17 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
+                <div class="icon-info">
+                    <h3>📝 Icon File Naming</h3>
+                    <p><strong>Icons are now saved with meaningful names:</strong></p>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>"Football" → <code>football.webp</code></li>
+                        <li>"Ice Hockey" → <code>ice-hockey.webp</code></li>
+                        <li>"Beach Volleyball" → <code>beach-volleyball.webp</code></li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>✨ Benefits:</strong> Easy to find files, rename automatically updates file, cleaner file structure</p>
+                </div>
+                
                 <div class="slack-info">
                     <h3>📢 Slack Notifications</h3>
                     <p>To receive notifications when new sports are added, create: <code>/var/www/u1852176/data/www/streaming/config/slack-config.json</code></p>
@@ -518,8 +582,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
                         <?php foreach ($sports as $sport): 
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
-                            // FIX: Icon URL should point to streaming website, NOT CMS domain
-                            // The streaming site (sportlemons.info) has the images, not the CMS
                             $iconUrl = 'https://www.' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($iconFile);
                         ?>
                             <div class="sport-card" data-sport-name="<?php echo htmlspecialchars($sport); ?>" draggable="true">

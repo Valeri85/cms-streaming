@@ -26,8 +26,19 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-function handleLogoUpload($file, $uploadDir) {
-    // ONLY WEBP, SVG, AVIF allowed
+// NEW FUNCTION: Convert site name to safe filename
+function sanitizeSiteName($siteName) {
+    $filename = strtolower($siteName);
+    $filename = str_replace(' ', '-', $filename);
+    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
+    $filename = preg_replace('/-+/', '-', $filename);
+    $filename = trim($filename, '-');
+    
+    return $filename;
+}
+
+// UPDATED FUNCTION: Now uses meaningful filename based on site name
+function handleLogoUpload($file, $uploadDir, $siteName) {
     $allowedTypes = ['image/webp', 'image/svg+xml'];
     $allowedExtensions = ['webp', 'svg'];
     
@@ -54,8 +65,15 @@ function handleLogoUpload($file, $uploadDir) {
         return ['error' => 'Invalid file extension'];
     }
     
-    $filename = uniqid('logo_', true) . '.' . $extension;
+    // NEW: Create meaningful filename from site name
+    $sanitizedName = sanitizeSiteName($siteName);
+    $filename = $sanitizedName . '.' . $extension;
     $filepath = $uploadDir . $filename;
+    
+    // NEW: Delete existing file if it exists (to replace old logo)
+    if (file_exists($filepath)) {
+        unlink($filepath);
+    }
     
     if (in_array($extension, ['webp', 'avif'])) {
         if (!extension_loaded('gd')) {
@@ -115,7 +133,6 @@ function handleLogoUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
-// Load website data first
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
@@ -133,7 +150,6 @@ if (!$website) {
     exit;
 }
 
-// Get preview URL - use the first active website domain or current website domain
 $previewDomain = $website['domain'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -150,20 +166,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($site['id'] == $websiteId) {
                 // Handle logo upload if new file provided
                 if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
-                    $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir);
+                    $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                     if (isset($uploadResult['success'])) {
-                        // Delete old logo if exists
-                        if (!empty($website['logo']) && file_exists($uploadDir . $website['logo'])) {
-                            unlink($uploadDir . $website['logo']);
+                        // Delete old logo if exists and is different
+                        if (!empty($website['logo'])) {
+                            $oldLogoPath = $uploadDir . $website['logo'];
+                            if (file_exists($oldLogoPath) && $oldLogoPath !== $uploadDir . $uploadResult['filename']) {
+                                unlink($oldLogoPath);
+                            }
                         }
                         $websites[$key]['logo'] = $uploadResult['filename'];
-                        $website['logo'] = $uploadResult['filename']; // Update current website variable
+                        $website['logo'] = $uploadResult['filename'];
                     } else {
                         $error = $uploadResult['error'];
                     }
                 }
                 
                 if (!$error) {
+                    // NEW: If site name changed, rename logo file
+                    if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
+                        $oldLogoFile = $website['logo'];
+                        $oldLogoPath = $uploadDir . $oldLogoFile;
+                        
+                        if (file_exists($oldLogoPath) && preg_match('/\.(webp|svg|avif)$/i', $oldLogoFile)) {
+                            $extension = pathinfo($oldLogoFile, PATHINFO_EXTENSION);
+                            $newLogoFilename = sanitizeSiteName($siteName) . '.' . $extension;
+                            $newLogoPath = $uploadDir . $newLogoFilename;
+                            
+                            if (rename($oldLogoPath, $newLogoPath)) {
+                                $websites[$key]['logo'] = $newLogoFilename;
+                                $website['logo'] = $newLogoFilename;
+                            }
+                        }
+                    }
+                    
                     $websites[$key]['domain'] = $domain;
                     $websites[$key]['site_name'] = $siteName;
                     $websites[$key]['primary_color'] = $primaryColor;
@@ -171,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $websites[$key]['language'] = $language;
                     $websites[$key]['status'] = $status;
                     $updated = true;
-                    $previewDomain = $domain; // Update preview domain
+                    $previewDomain = $domain;
                 }
                 break;
             }
@@ -239,6 +275,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
+                <div class="icon-info">
+                    <h3>📝 Logo File Naming</h3>
+                    <p><strong>Your logo is saved as: </strong>
+                        <?php if (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])): ?>
+                            <code><?php echo htmlspecialchars($website['logo']); ?></code>
+                        <?php else: ?>
+                            <em>No logo file</em>
+                        <?php endif; ?>
+                    </p>
+                    <p style="margin-top: 10px;">✨ <strong>If you change the site name</strong>, the logo file will be automatically renamed to match!</p>
+                </div>
+                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -260,15 +308,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) ? 'empty' : ''; ?>">
                                     <?php if (!empty($website['logo'])): 
-                                        // Check if logo is a file or emoji
                                         if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $website['logo'])) {
-                                            // It's a file - use full URL with https://
                                             $logoUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/logos/' . htmlspecialchars($website['logo']);
                                     ?>
                                         <img src="<?php echo $logoUrl; ?>?v=<?php echo time(); ?>" alt="Current Logo" id="currentLogoImg" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
                                     <?php 
                                         } else {
-                                            // It's an emoji
                                             echo htmlspecialchars($website['logo']);
                                         }
                                     else: ?>

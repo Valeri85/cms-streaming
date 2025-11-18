@@ -21,13 +21,28 @@ if (!file_exists($masterSportsFile)) {
     die("Master sports file not found at: " . $masterSportsFile);
 }
 
-// Create upload directory if it doesn't exist
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// Function to handle logo upload - ONLY WEBP, SVG, AVIF
-function handleLogoUpload($file, $uploadDir) {
+// NEW FUNCTION: Convert site name to safe filename
+function sanitizeSiteName($siteName) {
+    // Convert to lowercase
+    $filename = strtolower($siteName);
+    // Replace spaces with hyphens
+    $filename = str_replace(' ', '-', $filename);
+    // Remove any characters that aren't alphanumeric or hyphens
+    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
+    // Remove multiple consecutive hyphens
+    $filename = preg_replace('/-+/', '-', $filename);
+    // Trim hyphens from start/end
+    $filename = trim($filename, '-');
+    
+    return $filename;
+}
+
+// UPDATED FUNCTION: Now uses meaningful filename based on site name
+function handleLogoUpload($file, $uploadDir, $siteName) {
     $allowedTypes = ['image/webp', 'image/svg+xml'];
     $allowedExtensions = ['webp', 'svg'];
     
@@ -55,8 +70,15 @@ function handleLogoUpload($file, $uploadDir) {
         return ['error' => 'Invalid file extension'];
     }
     
-    $filename = uniqid('logo_', true) . '.' . $extension;
+    // NEW: Create meaningful filename from site name
+    $sanitizedName = sanitizeSiteName($siteName);
+    $filename = $sanitizedName . '.' . $extension;
     $filepath = $uploadDir . $filename;
+    
+    // NEW: Delete existing file if it exists (to replace old logo)
+    if (file_exists($filepath)) {
+        unlink($filepath);
+    }
     
     // For raster images (WEBP, AVIF), resize to 64x64
     if (in_array($extension, ['webp', 'avif'])) {
@@ -118,15 +140,12 @@ function handleLogoUpload($file, $uploadDir) {
     return ['success' => true, 'filename' => $filename];
 }
 
-// Function to get sports from existing websites or create default list
 function getSportsListForNewWebsite($websites) {
-    // If there are existing websites, copy sports from the first one
     if (!empty($websites)) {
         $firstWebsite = $websites[0];
         return $firstWebsite['sports_categories'] ?? [];
     }
     
-    // If no websites exist, return default comprehensive list
     return [
         'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
         'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
@@ -151,10 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $language = trim($_POST['language'] ?? 'en');
     $status = $_POST['status'] ?? 'active';
     
-    $logo = ''; // Will be set after upload
+    $logo = '';
     
     if ($siteName && $domain) {
-        // Check if domain already exists
         $domainExists = false;
         foreach ($websites as $website) {
             if ($website['domain'] === $domain) {
@@ -166,9 +184,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($domainExists) {
             $error = 'Domain already exists!';
         } else {
-            // Handle logo upload
+            // Handle logo upload with site name
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
-                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir);
+                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
                     $logo = $uploadResult['filename'];
                 } else {
@@ -177,7 +195,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
-                // Generate new ID
                 $maxId = 0;
                 foreach ($websites as $website) {
                     if ($website['id'] > $maxId) {
@@ -186,10 +203,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $newId = $maxId + 1;
                 
-                // Get sports list from existing websites or default list
                 $sportsList = getSportsListForNewWebsite($websites);
                 
-                // Add new website
                 $newWebsite = [
                     'id' => $newId,
                     'domain' => $domain,
@@ -197,10 +212,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'logo' => $logo,
                     'primary_color' => $primaryColor,
                     'secondary_color' => $secondaryColor,
-                    'seo_title' => '', // Empty
-                    'seo_description' => '', // Empty
+                    'seo_title' => '',
+                    'seo_description' => '',
                     'language' => $language,
-                    'sidebar_content' => '', // Empty
+                    'sidebar_content' => '',
                     'status' => $status,
                     'sports_categories' => $sportsList,
                     'sports_icons' => []
@@ -209,13 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $websites[] = $newWebsite;
                 $configData['websites'] = $websites;
                 
-                // Save to JSON with pretty print
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
                 if (file_put_contents($configFile, $jsonContent)) {
                     $sportsCount = count($sportsList);
                     $success = "Website added successfully with {$sportsCount} sport categories!";
-                    // Clear form
                     $_POST = [];
                 } else {
                     $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
@@ -227,7 +240,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get current sports count for display
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $existingWebsites = $configData['websites'] ?? [];
@@ -281,8 +293,17 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                     </div>
                 <?php endif; ?>
                 
+                <div class="icon-info">
+                    <h3>📝 Logo File Naming</h3>
+                    <p><strong>Logos are now saved with meaningful names based on site name:</strong></p>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>"SportLemons" → <code>sportlemons.webp</code></li>
+                        <li>"Watch Live Sport" → <code>watch-live-sport.webp</code></li>
+                        <li>"My Sports TV" → <code>my-sports-tv.svg</code></li>
+                    </ul>
+                </div>
+                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
-                    <!-- Basic Info -->
                     <div class="form-section">
                         <h3>Basic Information</h3>
                         
@@ -334,7 +355,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                         </div>
                     </div>
                     
-                    <!-- Theme Colors -->
                     <div class="form-section">
                         <h3>Theme Colors</h3>
                         
