@@ -17,7 +17,6 @@ if (!$websiteId) {
 
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 $uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
-$streamingDir = '/var/www/u1852176/data/www/streaming/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
@@ -39,120 +38,6 @@ function sanitizeSiteName($siteName) {
     $filename = $filename . '-logo';
     
     return $filename;
-}
-
-// NEW FUNCTION: Generate .htaccess content based on domain preference
-function generateHtaccessContent($domain) {
-    // Check if domain starts with www
-    $hasWww = (strpos($domain, 'www.') === 0);
-    
-    if ($hasWww) {
-        // User wants www version - redirect non-www to www
-        $nonWwwDomain = str_replace('www.', '', $domain);
-        
-        $htaccess = <<<HTACCESS
-# Enable rewrite engine
-RewriteEngine On
-RewriteBase /
-
-# Force HTTPS
-RewriteCond %{HTTPS} off
-RewriteRule ^(.*)$ https://%{HTTP_HOST}/\$1 [R=301,L]
-
-# Force WWW (redirect non-www to www)
-RewriteCond %{HTTP_HOST} ^{$nonWwwDomain}$ [NC]
-RewriteRule ^(.*)$ https://www.{$nonWwwDomain}/\$1 [R=301,L]
-
-# Prevent rewriting for actual files and directories
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-# Favorites page
-RewriteRule ^favorites/?$ index.php [L,QSA]
-
-# Live sport pages
-RewriteRule ^live-([a-z-]+)/?$ index.php [L,QSA]
-
-# Prevent access to config and data files
-<FilesMatch "^(config|data\.json)">
-Order allow,deny
-Deny from all
-</FilesMatch>
-
-# Prevent access to hidden files
-<FilesMatch "^\.">
-Order allow,deny
-Deny from all
-</FilesMatch>
-
-# Prevent directory listing
-Options -Indexes
-
-# Force UTF-8 encoding
-AddDefaultCharset UTF-8
-HTACCESS;
-    } else {
-        // User wants non-www version - redirect www to non-www
-        $htaccess = <<<HTACCESS
-# Enable rewrite engine
-RewriteEngine On
-RewriteBase /
-
-# Force HTTPS
-RewriteCond %{HTTPS} off
-RewriteRule ^(.*)$ https://%{HTTP_HOST}/\$1 [R=301,L]
-
-# Force non-WWW (redirect www to non-www)
-RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
-RewriteRule ^(.*)$ https://%1/\$1 [R=301,L]
-
-# Prevent rewriting for actual files and directories
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-
-# Favorites page
-RewriteRule ^favorites/?$ index.php [L,QSA]
-
-# Live sport pages
-RewriteRule ^live-([a-z-]+)/?$ index.php [L,QSA]
-
-# Prevent access to config and data files
-<FilesMatch "^(config|data\.json)">
-Order allow,deny
-Deny from all
-</FilesMatch>
-
-# Prevent access to hidden files
-<FilesMatch "^\.">
-Order allow,deny
-Deny from all
-</FilesMatch>
-
-# Prevent directory listing
-Options -Indexes
-
-# Force UTF-8 encoding
-AddDefaultCharset UTF-8
-HTACCESS;
-    }
-    
-    return $htaccess;
-}
-
-// NEW FUNCTION: Write .htaccess file to streaming directory
-function writeHtaccessFile($domain, $streamingDir) {
-    $htaccessContent = generateHtaccessContent($domain);
-    $htaccessPath = $streamingDir . '.htaccess';
-    
-    $result = file_put_contents($htaccessPath, $htaccessContent);
-    
-    if ($result !== false) {
-        // Set proper permissions
-        chmod($htaccessPath, 0644);
-        return true;
-    }
-    
-    return false;
 }
 
 // UPDATED FUNCTION: Now uses meaningful filename based on site name
@@ -336,12 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
                 if (file_put_contents($configFile, $jsonContent)) {
-                    // NEW: Generate and write .htaccess file
-                    if (writeHtaccessFile($domain, $streamingDir)) {
-                        $success = 'Website updated successfully! .htaccess file generated with canonical URL rules.';
-                    } else {
-                        $success = 'Website updated successfully, but failed to write .htaccess file. Please check permissions.';
-                    }
+                    // REMOVED: .htaccess generation - it was breaking the site
+                    $success = 'Website updated successfully!';
                 } else {
                     $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
                 }
@@ -437,21 +318,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                     <p style="margin-top: 10px;">✨ <strong>If you change the site name</strong>, the logo file will be automatically renamed to match!</p>
                 </div>
                 
-                <div class="icon-info" style="background: #e8f5e9; border-left-color: #4caf50;">
-                    <h3>🔒 Canonical URL & HTTPS</h3>
-                    <p><strong>Domain format matters:</strong></p>
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>✅ Enter <code>www.sportlemons.info</code> → All traffic redirects to <code>https://www.sportlemons.info</code></li>
-                        <li>✅ Enter <code>sportlemons.info</code> → All traffic redirects to <code>https://sportlemons.info</code></li>
-                    </ul>
-                    <p style="margin-top: 10px;"><strong>💡 System will automatically:</strong></p>
-                    <ul style="margin: 5px 0 0 20px;">
-                        <li>Force HTTPS (redirect HTTP to HTTPS)</li>
-                        <li>Generate canonical .htaccess rules</li>
-                        <li>Redirect www ↔ non-www based on your preference</li>
-                    </ul>
-                </div>
-                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -464,8 +330,8 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                             
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
-                                <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="sportlemons.info or www.sportlemons.info">
-                                <small>⚠️ Format matters: Include "www." if you want www version as canonical</small>
+                                <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="example.com">
+                                <small>Without http:// or www.</small>
                             </div>
                         </div>
                         
