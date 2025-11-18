@@ -17,6 +17,7 @@ if (!$websiteId) {
 
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 $uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
+$streamingDir = '/var/www/u1852176/data/www/streaming/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
@@ -38,6 +39,120 @@ function sanitizeSiteName($siteName) {
     $filename = $filename . '-logo';
     
     return $filename;
+}
+
+// NEW FUNCTION: Generate .htaccess content based on domain preference
+function generateHtaccessContent($domain) {
+    // Check if domain starts with www
+    $hasWww = (strpos($domain, 'www.') === 0);
+    
+    if ($hasWww) {
+        // User wants www version - redirect non-www to www
+        $nonWwwDomain = str_replace('www.', '', $domain);
+        
+        $htaccess = <<<HTACCESS
+# Enable rewrite engine
+RewriteEngine On
+RewriteBase /
+
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/\$1 [R=301,L]
+
+# Force WWW (redirect non-www to www)
+RewriteCond %{HTTP_HOST} ^{$nonWwwDomain}$ [NC]
+RewriteRule ^(.*)$ https://www.{$nonWwwDomain}/\$1 [R=301,L]
+
+# Prevent rewriting for actual files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Favorites page
+RewriteRule ^favorites/?$ index.php [L,QSA]
+
+# Live sport pages
+RewriteRule ^live-([a-z-]+)/?$ index.php [L,QSA]
+
+# Prevent access to config and data files
+<FilesMatch "^(config|data\.json)">
+Order allow,deny
+Deny from all
+</FilesMatch>
+
+# Prevent access to hidden files
+<FilesMatch "^\.">
+Order allow,deny
+Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Force UTF-8 encoding
+AddDefaultCharset UTF-8
+HTACCESS;
+    } else {
+        // User wants non-www version - redirect www to non-www
+        $htaccess = <<<HTACCESS
+# Enable rewrite engine
+RewriteEngine On
+RewriteBase /
+
+# Force HTTPS
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}/\$1 [R=301,L]
+
+# Force non-WWW (redirect www to non-www)
+RewriteCond %{HTTP_HOST} ^www\.(.*)$ [NC]
+RewriteRule ^(.*)$ https://%1/\$1 [R=301,L]
+
+# Prevent rewriting for actual files and directories
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Favorites page
+RewriteRule ^favorites/?$ index.php [L,QSA]
+
+# Live sport pages
+RewriteRule ^live-([a-z-]+)/?$ index.php [L,QSA]
+
+# Prevent access to config and data files
+<FilesMatch "^(config|data\.json)">
+Order allow,deny
+Deny from all
+</FilesMatch>
+
+# Prevent access to hidden files
+<FilesMatch "^\.">
+Order allow,deny
+Deny from all
+</FilesMatch>
+
+# Prevent directory listing
+Options -Indexes
+
+# Force UTF-8 encoding
+AddDefaultCharset UTF-8
+HTACCESS;
+    }
+    
+    return $htaccess;
+}
+
+// NEW FUNCTION: Write .htaccess file to streaming directory
+function writeHtaccessFile($domain, $streamingDir) {
+    $htaccessContent = generateHtaccessContent($domain);
+    $htaccessPath = $streamingDir . '.htaccess';
+    
+    $result = file_put_contents($htaccessPath, $htaccessContent);
+    
+    if ($result !== false) {
+        // Set proper permissions
+        chmod($htaccessPath, 0644);
+        return true;
+    }
+    
+    return false;
 }
 
 // UPDATED FUNCTION: Now uses meaningful filename based on site name
@@ -156,81 +271,113 @@ if (!$website) {
 $previewDomain = $website['domain'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $siteName = trim($_POST['site_name'] ?? '');
-    $domain = trim($_POST['domain'] ?? '');
-    $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
-    $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
-    $language = trim($_POST['language'] ?? 'en');
-    $status = $_POST['status'] ?? 'active';
+    $websiteIndex = null;
+    foreach ($websites as $key => $site) {
+        if ($site['id'] == $websiteId) {
+            $websiteIndex = $key;
+            break;
+        }
+    }
     
-    if ($siteName && $domain) {
-        $updated = false;
-        foreach ($websites as $key => $site) {
-            if ($site['id'] == $websiteId) {
-                // Handle logo upload if new file provided
-                if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
-                    $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
-                    if (isset($uploadResult['success'])) {
-                        // Delete old logo if exists and is different
-                        if (!empty($website['logo'])) {
-                            $oldLogoPath = $uploadDir . $website['logo'];
-                            if (file_exists($oldLogoPath) && $oldLogoPath !== $uploadDir . $uploadResult['filename']) {
-                                unlink($oldLogoPath);
-                            }
+    if ($websiteIndex !== null) {
+        $siteName = trim($_POST['site_name'] ?? '');
+        $domain = trim($_POST['domain'] ?? '');
+        $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
+        $secondaryColor = trim($_POST['secondary_color'] ?? '#FF8C00');
+        $language = trim($_POST['language'] ?? 'en');
+        $status = $_POST['status'] ?? 'active';
+        
+        if ($siteName && $domain) {
+            // Handle logo upload if new file provided
+            if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
+                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
+                if (isset($uploadResult['success'])) {
+                    // Delete old logo if exists and is different
+                    if (!empty($website['logo'])) {
+                        $oldLogoPath = $uploadDir . $website['logo'];
+                        if (file_exists($oldLogoPath) && $oldLogoPath !== $uploadDir . $uploadResult['filename']) {
+                            unlink($oldLogoPath);
                         }
-                        $websites[$key]['logo'] = $uploadResult['filename'];
-                        $website['logo'] = $uploadResult['filename'];
-                    } else {
-                        $error = $uploadResult['error'];
+                    }
+                    $websites[$websiteIndex]['logo'] = $uploadResult['filename'];
+                    $website['logo'] = $uploadResult['filename'];
+                } else {
+                    $error = $uploadResult['error'];
+                }
+            }
+            
+            if (!$error) {
+                // NEW: If site name changed, rename logo file
+                if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
+                    $oldLogoFile = $website['logo'];
+                    $oldLogoPath = $uploadDir . $oldLogoFile;
+                    
+                    if (file_exists($oldLogoPath) && preg_match('/\.(webp|svg|avif)$/i', $oldLogoFile)) {
+                        $extension = pathinfo($oldLogoFile, PATHINFO_EXTENSION);
+                        $newLogoFilename = sanitizeSiteName($siteName) . '.' . $extension;
+                        $newLogoPath = $uploadDir . $newLogoFilename;
+                        
+                        if (rename($oldLogoPath, $newLogoPath)) {
+                            $websites[$websiteIndex]['logo'] = $newLogoFilename;
+                            $website['logo'] = $newLogoFilename;
+                        }
                     }
                 }
                 
-                if (!$error) {
-                    // NEW: If site name changed, rename logo file
-                    if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
-                        $oldLogoFile = $website['logo'];
-                        $oldLogoPath = $uploadDir . $oldLogoFile;
-                        
-                        if (file_exists($oldLogoPath) && preg_match('/\.(webp|svg|avif)$/i', $oldLogoFile)) {
-                            $extension = pathinfo($oldLogoFile, PATHINFO_EXTENSION);
-                            $newLogoFilename = sanitizeSiteName($siteName) . '.' . $extension;
-                            $newLogoPath = $uploadDir . $newLogoFilename;
-                            
-                            if (rename($oldLogoPath, $newLogoPath)) {
-                                $websites[$key]['logo'] = $newLogoFilename;
-                                $website['logo'] = $newLogoFilename;
-                            }
-                        }
+                $websites[$websiteIndex]['domain'] = $domain;
+                $websites[$websiteIndex]['site_name'] = $siteName;
+                $websites[$websiteIndex]['primary_color'] = $primaryColor;
+                $websites[$websiteIndex]['secondary_color'] = $secondaryColor;
+                $websites[$websiteIndex]['language'] = $language;
+                $websites[$websiteIndex]['status'] = $status;
+                $previewDomain = $domain;
+                
+                $configData['websites'] = $websites;
+                $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                
+                if (file_put_contents($configFile, $jsonContent)) {
+                    // NEW: Generate and write .htaccess file
+                    if (writeHtaccessFile($domain, $streamingDir)) {
+                        $success = 'Website updated successfully! .htaccess file generated with canonical URL rules.';
+                    } else {
+                        $success = 'Website updated successfully, but failed to write .htaccess file. Please check permissions.';
                     }
-                    
-                    $websites[$key]['domain'] = $domain;
-                    $websites[$key]['site_name'] = $siteName;
-                    $websites[$key]['primary_color'] = $primaryColor;
-                    $websites[$key]['secondary_color'] = $secondaryColor;
-                    $websites[$key]['language'] = $language;
-                    $websites[$key]['status'] = $status;
-                    $updated = true;
-                    $previewDomain = $domain;
+                } else {
+                    $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
                 }
-                break;
             }
+        } else {
+            $error = 'Please fill all required fields';
         }
-        
-        if ($updated) {
-            $configData['websites'] = $websites;
-            $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            
-            if (file_put_contents($configFile, $jsonContent)) {
-                $success = 'Website updated successfully!';
-            } else {
-                $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
-            }
-        } else if (!$error) {
-            $error = 'Website not found';
-        }
-    } else {
-        $error = 'Please fill all required fields';
     }
+}
+
+// FIXED: Function to generate base64 data URL for logo preview in CMS
+function getLogoPreviewData($logoFilename, $uploadDir) {
+    if (empty($logoFilename) || !preg_match('/\.(webp|svg|avif)$/i', $logoFilename)) {
+        return null;
+    }
+    
+    $filepath = $uploadDir . $logoFilename;
+    
+    if (!file_exists($filepath)) {
+        return null;
+    }
+    
+    // Get MIME type
+    $extension = strtolower(pathinfo($logoFilename, PATHINFO_EXTENSION));
+    $mimeTypes = [
+        'webp' => 'image/webp',
+        'svg' => 'image/svg+xml',
+        'avif' => 'image/avif'
+    ];
+    $mimeType = $mimeTypes[$extension] ?? 'image/png';
+    
+    // Read file and encode as base64
+    $imageData = file_get_contents($filepath);
+    $base64 = base64_encode($imageData);
+    
+    return "data:{$mimeType};base64,{$base64}";
 }
 ?>
 <!DOCTYPE html>
@@ -290,6 +437,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p style="margin-top: 10px;">✨ <strong>If you change the site name</strong>, the logo file will be automatically renamed to match!</p>
                 </div>
                 
+                <div class="icon-info" style="background: #e8f5e9; border-left-color: #4caf50;">
+                    <h3>🔒 Canonical URL & HTTPS</h3>
+                    <p><strong>Domain format matters:</strong></p>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li>✅ Enter <code>www.sportlemons.info</code> → All traffic redirects to <code>https://www.sportlemons.info</code></li>
+                        <li>✅ Enter <code>sportlemons.info</code> → All traffic redirects to <code>https://sportlemons.info</code></li>
+                    </ul>
+                    <p style="margin-top: 10px;"><strong>💡 System will automatically:</strong></p>
+                    <ul style="margin: 5px 0 0 20px;">
+                        <li>Force HTTPS (redirect HTTP to HTTPS)</li>
+                        <li>Generate canonical .htaccess rules</li>
+                        <li>Redirect www ↔ non-www based on your preference</li>
+                    </ul>
+                </div>
+                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -302,7 +464,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
-                                <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="example.com">
+                                <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="sportlemons.info or www.sportlemons.info">
+                                <small>⚠️ Format matters: Include "www." if you want www version as canonical</small>
                             </div>
                         </div>
                         
@@ -310,11 +473,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="form-group">
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) || !preg_match('/\.(webp|svg|avif)$/i', $website['logo']) ? 'empty' : ''; ?>">
-                                    <?php if (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])): 
-                                        // FIXED: Correct URL construction for logo preview
-                                        $logoUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/logos/' . htmlspecialchars($website['logo']);
+                                    <?php 
+                                    // FIXED: Use base64 data URL instead of HTTP URL
+                                    $logoDataUrl = getLogoPreviewData($website['logo'], $uploadDir);
+                                    if ($logoDataUrl): 
                                     ?>
-                                        <img src="<?php echo $logoUrl; ?>?v=<?php echo time(); ?>" alt="Current Logo" id="currentLogoImg" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
+                                        <img src="<?php echo $logoDataUrl; ?>" alt="Current Logo" id="currentLogoImg" onerror="this.parentElement.innerHTML='?'; this.parentElement.classList.add('empty');">
                                     <?php else: ?>
                                         ?
                                     <?php endif; ?>
