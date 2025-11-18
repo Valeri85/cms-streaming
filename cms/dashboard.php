@@ -62,18 +62,7 @@ function renderLogoPreview($logo) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CMS Dashboard</title>
     <link rel="stylesheet" href="cms-style.css">
-    <style>
-        .action-buttons {
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
-        .logo-with-name {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
     <div class="cms-layout">

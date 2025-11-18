@@ -240,56 +240,7 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
-    <style>
-        .logo-preview {
-            width: 64px;
-            height: 64px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            margin: 10px 0;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .logo-preview img {
-            max-width: 48px;
-            max-height: 48px;
-            object-fit: contain;
-        }
-        .logo-preview.empty {
-            color: white;
-            font-size: 32px;
-        }
-        .file-upload-wrapper {
-            position: relative;
-        }
-        .file-upload-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 12px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        .file-upload-label:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        .file-upload-input {
-            display: none;
-        }
-        .file-name-display {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/website-add.css">
 </head>
 <body>
     <div class="cms-layout">
@@ -406,27 +357,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                         </div>
                     </div>
                     
-                    <!-- What Happens Next -->
-                    <div class="form-section" style="background: #e3f2fd; border-left: 4px solid #2196f3;">
-                        <h3 style="color: #1565c0;">ℹ️ What happens after you create the website?</h3>
-                        <ul style="margin-left: 20px; color: #424242;">
-                            <?php if (!empty($existingWebsites)): ?>
-                                <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> sport categories</strong> (copied from your first website)</li>
-                            <?php else: ?>
-                                <li style="margin-bottom: 10px;">✅ Website will be created with <strong><?php echo $currentSportsCount; ?> default sport categories</strong></li>
-                            <?php endif; ?>
-                            <li style="margin-bottom: 10px;">✅ SEO settings will be empty (you can configure later)</li>
-                            <li style="margin-bottom: 10px;">✅ Sidebar content will be empty (you can configure later)</li>
-                            <li style="margin-bottom: 10px;">📝 You can customize everything from the dashboard:
-                                <ul style="margin-left: 20px; margin-top: 5px;">
-                                    <li>Manage sports categories and icons</li>
-                                    <li>Configure SEO for each page</li>
-                                    <li>Edit website settings</li>
-                                </ul>
-                            </li>
-                        </ul>
-                    </div>
-                    
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Create Website</button>
                         <a href="dashboard.php" class="btn btn-outline">Cancel</a>
@@ -436,31 +366,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
         </main>
     </div>
     
-    <script>
-        // Update color text inputs when color picker changes
-        document.getElementById('primary_color').addEventListener('input', function(e) {
-            e.target.nextElementSibling.value = e.target.value;
-        });
-        
-        document.getElementById('secondary_color').addEventListener('input', function(e) {
-            e.target.nextElementSibling.value = e.target.value;
-        });
-        
-        // Logo preview
-        document.getElementById('logo_file').addEventListener('change', function(e) {
-            const fileName = e.target.files[0]?.name || 'No file chosen';
-            document.getElementById('logoFileName').textContent = fileName;
-            
-            if (e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const preview = document.getElementById('logoPreview');
-                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Logo Preview">';
-                    preview.classList.remove('empty');
-                };
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
-    </script>
+    <script src="js/website-add.js"></script>
 </body>
 </html>

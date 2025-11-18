@@ -15,11 +15,45 @@
 	gap: 15px;
 	transition: all 0.3s;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	position: relative;
+	cursor: grab;
+}
+
+.sport-card:active {
+	cursor: grabbing;
 }
 
 .sport-card:hover {
 	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
 	transform: translateY(-3px);
+}
+
+.sport-card.dragging {
+	opacity: 0.5;
+	transform: scale(0.95);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.sport-card.drag-over {
+	border: 2px dashed #3498db;
+	background: rgba(52, 152, 219, 0.05);
+}
+
+.drag-handle {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	cursor: move;
+	font-size: 20px;
+	color: #95a5a6;
+	padding: 5px;
+	user-select: none;
+	transition: color 0.3s;
+	z-index: 10;
+}
+
+.drag-handle:hover {
+	color: #3498db;
 }
 
 .sport-card-header {
