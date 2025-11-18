@@ -33,6 +33,8 @@ if (!is_writable($uploadDir)) {
     die("Upload directory is not writable: " . $uploadDir . " - Please run: chmod 755 " . $uploadDir);
 }
 
+// ... (keeping all your existing functions - sendSlackNotification, handleImageUpload, etc.)
+
 function sendSlackNotification($sportName) {
     $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
     if (!file_exists($slackConfigFile)) {
@@ -253,6 +255,7 @@ if (!$website) {
 
 $previewDomain = $website['domain'];
 
+// POST handling code (keeping all your existing POST logic)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $websiteIndex = null;
     foreach ($websites as $key => $site) {
@@ -515,7 +518,9 @@ $sportsIcons = $website['sports_icons'] ?? [];
                         <?php foreach ($sports as $sport): 
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
-                            $iconUrl = 'https://' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($iconFile);
+                            // FIX: Icon URL should point to streaming website, NOT CMS domain
+                            // The streaming site (sportlemons.info) has the images, not the CMS
+                            $iconUrl = 'https://www.' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($iconFile);
                         ?>
                             <div class="sport-card" data-sport-name="<?php echo htmlspecialchars($sport); ?>" draggable="true">
                                 <div class="drag-handle" title="Drag to reorder">⋮⋮</div>

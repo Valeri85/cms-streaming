@@ -1,38 +1,92 @@
 // Get preview domain from PHP
 const previewDomain = document.body.dataset.previewDomain || '';
 
-// File upload preview for new sport icon
-document.getElementById('new_sport_icon').addEventListener('change', function (e) {
-	const fileName = e.target.files[0]?.name || 'No file chosen';
-	document.getElementById('newSportFileName').textContent = fileName;
+// ========================================
+// SCROLL POSITION MANAGEMENT
+// ========================================
+
+// Save scroll position before any form submit
+function saveScrollPosition() {
+	const scrollPos = window.pageYOffset || document.documentElement.scrollTop;
+	sessionStorage.setItem('sportsPageScrollPos', scrollPos);
+}
+
+// Restore scroll position after page load
+function restoreScrollPosition() {
+	const scrollPos = sessionStorage.getItem('sportsPageScrollPos');
+	if (scrollPos) {
+		window.scrollTo(0, parseInt(scrollPos));
+		sessionStorage.removeItem('sportsPageScrollPos');
+	}
+}
+
+// Initialize scroll position restoration on page load
+window.addEventListener('DOMContentLoaded', function () {
+	restoreScrollPosition();
+
+	// Also handle the "Add New Sport" form at top of page
+	const addSportForm = document.querySelector('form[method="POST"][enctype="multipart/form-data"]');
+	if (addSportForm && addSportForm.querySelector('button[name="add_sport"]')) {
+		addSportForm.addEventListener('submit', function (e) {
+			saveScrollPosition();
+		});
+	}
 });
 
-// File upload preview for edit sport icon
-document.getElementById('sportIconFile').addEventListener('change', function (e) {
-	const fileName = e.target.files[0]?.name || 'No file chosen';
-	document.getElementById('editSportFileName').textContent = fileName;
+// File upload preview for new sport icon
+document.addEventListener('DOMContentLoaded', function () {
+	const newSportIcon = document.getElementById('new_sport_icon');
+	if (newSportIcon) {
+		newSportIcon.addEventListener('change', function (e) {
+			const fileName = e.target.files[0]?.name || 'No file chosen';
+			const fileDisplay = document.getElementById('newSportFileName');
+			if (fileDisplay) {
+				fileDisplay.textContent = fileName;
+			}
+		});
+	}
 
-	if (e.target.files[0]) {
-		const reader = new FileReader();
-		reader.onload = function (event) {
-			const preview = document.getElementById('iconPreviewContainer');
-			preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview">';
-			preview.classList.remove('no-icon');
-		};
-		reader.readAsDataURL(e.target.files[0]);
+	// File upload preview for edit sport icon
+	const sportIconFile = document.getElementById('sportIconFile');
+	if (sportIconFile) {
+		sportIconFile.addEventListener('change', function (e) {
+			const fileName = e.target.files[0]?.name || 'No file chosen';
+			const fileDisplay = document.getElementById('editSportFileName');
+			if (fileDisplay) {
+				fileDisplay.textContent = fileName;
+			}
+
+			if (e.target.files[0]) {
+				const reader = new FileReader();
+				reader.onload = function (event) {
+					const preview = document.getElementById('iconPreviewContainer');
+					if (preview) {
+						preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview">';
+						preview.classList.remove('no-icon');
+					}
+				};
+				reader.readAsDataURL(e.target.files[0]);
+			}
+		});
 	}
 });
 
 // Open icon upload modal
 function openIconModal(sportName, currentIcon) {
-	document.getElementById('iconSportName').value = sportName;
-
+	const iconModal = document.getElementById('iconModal');
+	const iconSportName = document.getElementById('iconSportName');
 	const preview = document.getElementById('iconPreviewContainer');
 	const iconName = document.getElementById('currentIconName');
+	const fileDisplay = document.getElementById('editSportFileName');
+	const sportIconFile = document.getElementById('sportIconFile');
 
-	if (currentIcon) {
-		// Use relative path
-		const iconUrl = '/images/sports/' + currentIcon + '?v=' + Date.now();
+	if (!iconModal || !iconSportName) return;
+
+	iconSportName.value = sportName;
+
+	if (currentIcon && preview && iconName) {
+		// FIX: Icon URL should point to streaming website with www.
+		const iconUrl = 'https://www.' + previewDomain + '/images/sports/' + currentIcon + '?v=' + Date.now();
 		preview.innerHTML =
 			'<img src="' +
 			iconUrl +
@@ -41,43 +95,95 @@ function openIconModal(sportName, currentIcon) {
 			"\" onerror=\"this.parentElement.innerHTML='?'; this.parentElement.classList.add('no-icon');\">";
 		preview.classList.remove('no-icon');
 		iconName.textContent = 'Current: ' + currentIcon;
-	} else {
+	} else if (preview && iconName) {
 		preview.innerHTML = '?';
 		preview.classList.add('no-icon');
 		iconName.textContent = 'No icon';
 	}
 
-	document.getElementById('editSportFileName').textContent = 'No file chosen';
-	document.getElementById('sportIconFile').value = '';
-	document.getElementById('iconModal').classList.add('active');
+	if (fileDisplay) fileDisplay.textContent = 'No file chosen';
+	if (sportIconFile) sportIconFile.value = '';
+
+	iconModal.classList.add('active');
 }
 
 // Close icon modal
 function closeIconModal() {
-	document.getElementById('iconModal').classList.remove('active');
+	const iconModal = document.getElementById('iconModal');
+	if (iconModal) {
+		iconModal.classList.remove('active');
+	}
 }
 
 // Open rename modal
 function openRenameModal(sportName) {
-	document.getElementById('oldSportName').value = sportName;
-	document.getElementById('newSportNameInput').value = sportName;
-	document.getElementById('renameModal').classList.add('active');
-	document.getElementById('newSportNameInput').focus();
-	document.getElementById('newSportNameInput').select();
+	const renameModal = document.getElementById('renameModal');
+	const oldSportName = document.getElementById('oldSportName');
+	const newSportNameInput = document.getElementById('newSportNameInput');
+
+	if (!renameModal || !oldSportName || !newSportNameInput) return;
+
+	oldSportName.value = sportName;
+	newSportNameInput.value = sportName;
+	renameModal.classList.add('active');
+	newSportNameInput.focus();
+	newSportNameInput.select();
 }
 
 // Close rename modal
 function closeRenameModal() {
-	document.getElementById('renameModal').classList.remove('active');
+	const renameModal = document.getElementById('renameModal');
+	if (renameModal) {
+		renameModal.classList.remove('active');
+	}
 }
 
 // Close modals when clicking outside
-document.getElementById('iconModal').addEventListener('click', function (e) {
-	if (e.target === this) closeIconModal();
-});
+document.addEventListener('DOMContentLoaded', function () {
+	const iconModal = document.getElementById('iconModal');
+	if (iconModal) {
+		iconModal.addEventListener('click', function (e) {
+			if (e.target === this) closeIconModal();
+		});
 
-document.getElementById('renameModal').addEventListener('click', function (e) {
-	if (e.target === this) closeRenameModal();
+		const iconForm = iconModal.querySelector('form');
+		if (iconForm) {
+			iconForm.addEventListener('submit', function (e) {
+				saveScrollPosition();
+			});
+		}
+	}
+
+	const renameModal = document.getElementById('renameModal');
+	if (renameModal) {
+		renameModal.addEventListener('click', function (e) {
+			if (e.target === this) closeRenameModal();
+		});
+
+		const renameForm = renameModal.querySelector('form');
+		if (renameForm) {
+			renameForm.addEventListener('submit', function (e) {
+				saveScrollPosition();
+			});
+		}
+	}
+
+	const deleteIconForms = document.querySelectorAll('form[onsubmit*="Delete icon"]');
+	deleteIconForms.forEach(form => {
+		form.addEventListener('submit', function (e) {
+			saveScrollPosition();
+		});
+	});
+
+	const deleteSportForms = document.querySelectorAll('form button[name="delete_sport"]');
+	deleteSportForms.forEach(button => {
+		const form = button.closest('form');
+		if (form) {
+			form.addEventListener('submit', function (e) {
+				saveScrollPosition();
+			});
+		}
+	});
 });
 
 // ========================================
@@ -89,76 +195,55 @@ let draggedIndex = null;
 let autoScrollInterval = null;
 
 function initDragAndDrop() {
-	console.log('🔧 Initializing drag and drop...');
-
 	const sportsGrid = document.getElementById('sportsGrid');
 	if (!sportsGrid) {
-		console.error('❌ Sports grid not found!');
 		return;
 	}
 
 	const sportCards = sportsGrid.querySelectorAll('.sport-card');
-	console.log('📦 Found sport cards:', sportCards.length);
 
 	if (sportCards.length === 0) {
-		console.warn('⚠️ No sport cards to make draggable');
 		return;
 	}
 
 	sportCards.forEach((card, index) => {
-		console.log(`✅ Setting up drag for card ${index}:`, card.dataset.sportName);
-
-		// Make sure draggable attribute is set
 		card.setAttribute('draggable', 'true');
 
-		// Drag start
 		card.addEventListener('dragstart', function (e) {
-			console.log('🎯 Drag started:', this.dataset.sportName);
 			draggedElement = this;
 			draggedIndex = index;
 			this.classList.add('dragging');
 
-			// Set data for drag operation
 			e.dataTransfer.effectAllowed = 'move';
 			e.dataTransfer.setData('text/html', this.innerHTML);
 
-			// Make the drag operation visible
 			this.style.opacity = '0.4';
 
-			// Start auto-scroll monitoring
 			startAutoScroll();
 		});
 
-		// Drag end
 		card.addEventListener('dragend', function (e) {
-			console.log('🏁 Drag ended:', this.dataset.sportName);
 			this.classList.remove('dragging');
 			this.style.opacity = '1';
 
-			// Stop auto-scroll
 			stopAutoScroll();
 
-			// Remove all drag-over classes
 			sportCards.forEach(c => c.classList.remove('drag-over'));
 		});
 
-		// Drag over - IMPORTANT: Must prevent default!
 		card.addEventListener('dragover', function (e) {
-			e.preventDefault(); // CRITICAL: Allow drop
+			e.preventDefault();
 			e.dataTransfer.dropEffect = 'move';
 
-			// Add visual feedback
 			if (this !== draggedElement) {
 				this.classList.add('drag-over');
 			}
 
-			// Update mouse position for auto-scroll
 			updateMousePosition(e);
 
 			return false;
 		});
 
-		// Drag enter
 		card.addEventListener('dragenter', function (e) {
 			e.preventDefault();
 			if (this !== draggedElement) {
@@ -166,49 +251,36 @@ function initDragAndDrop() {
 			}
 		});
 
-		// Drag leave
 		card.addEventListener('dragleave', function (e) {
 			this.classList.remove('drag-over');
 		});
 
-		// Drop
 		card.addEventListener('drop', function (e) {
 			e.stopPropagation();
 			e.preventDefault();
 
-			console.log('📍 Dropped on:', this.dataset.sportName);
 			this.classList.remove('drag-over');
 
 			if (draggedElement !== this) {
-				// Get all cards again (fresh list)
 				const allCards = Array.from(sportsGrid.querySelectorAll('.sport-card'));
 				const draggedCard = draggedElement;
 				const targetCard = this;
 
-				// Get current positions
 				const draggedPos = allCards.indexOf(draggedCard);
 				const targetPos = allCards.indexOf(targetCard);
 
-				console.log(`📊 Moving from position ${draggedPos} to ${targetPos}`);
-
-				// Reorder DOM
 				if (draggedPos < targetPos) {
-					// Moving down
 					targetCard.parentNode.insertBefore(draggedCard, targetCard.nextSibling);
 				} else {
-					// Moving up
 					targetCard.parentNode.insertBefore(draggedCard, targetCard);
 				}
 
-				// Save new order
 				saveNewOrder();
 			}
 
 			return false;
 		});
 	});
-
-	console.log('✅ Drag and drop initialized successfully!');
 }
 
 // ========================================
@@ -224,12 +296,10 @@ function updateMousePosition(e) {
 }
 
 function startAutoScroll() {
-	// Clear any existing interval
 	if (autoScrollInterval) {
 		clearInterval(autoScrollInterval);
 	}
 
-	// Start new interval for smooth scrolling
 	autoScrollInterval = setInterval(() => {
 		if (!draggedElement) {
 			stopAutoScroll();
@@ -240,29 +310,22 @@ function startAutoScroll() {
 		const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
 		const documentHeight = document.documentElement.scrollHeight;
 
-		// Scroll up when near top
 		if (mouseY < SCROLL_THRESHOLD && scrollTop > 0) {
 			const intensity = (SCROLL_THRESHOLD - mouseY) / SCROLL_THRESHOLD;
 			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
 			window.scrollBy(0, -scrollAmount);
-			console.log('⬆️ Auto-scrolling up:', scrollAmount);
-		}
-
-		// Scroll down when near bottom
-		else if (mouseY > windowHeight - SCROLL_THRESHOLD && scrollTop + windowHeight < documentHeight) {
+		} else if (mouseY > windowHeight - SCROLL_THRESHOLD && scrollTop + windowHeight < documentHeight) {
 			const intensity = (mouseY - (windowHeight - SCROLL_THRESHOLD)) / SCROLL_THRESHOLD;
 			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
 			window.scrollBy(0, scrollAmount);
-			console.log('⬇️ Auto-scrolling down:', scrollAmount);
 		}
-	}, 16); // ~60fps
+	}, 16);
 }
 
 function stopAutoScroll() {
 	if (autoScrollInterval) {
 		clearInterval(autoScrollInterval);
 		autoScrollInterval = null;
-		console.log('🛑 Auto-scroll stopped');
 	}
 }
 
@@ -271,24 +334,21 @@ function stopAutoScroll() {
 // ========================================
 
 function saveNewOrder() {
-	console.log('💾 Saving new order...');
-
 	const sportsGrid = document.getElementById('sportsGrid');
+	if (!sportsGrid) {
+		return;
+	}
+
 	const sportCards = sportsGrid.querySelectorAll('.sport-card');
 
-	// Get new order
 	const newOrder = [];
 	sportCards.forEach((card, index) => {
 		const sportName = card.getAttribute('data-sport-name');
 		if (sportName) {
 			newOrder.push(sportName);
-			console.log(`${index + 1}. ${sportName}`);
 		}
 	});
 
-	console.log('📤 Sending order to server:', newOrder);
-
-	// Send to server
 	const formData = new FormData();
 	formData.append('reorder_sports', '1');
 	formData.append('sports_order', JSON.stringify(newOrder));
@@ -299,11 +359,9 @@ function saveNewOrder() {
 	})
 		.then(response => response.text())
 		.then(html => {
-			console.log('✅ Order saved successfully!');
 			showNotification('✅ Sports order updated!', 'success');
 		})
 		.catch(error => {
-			console.error('❌ Error saving order:', error);
 			showNotification('❌ Failed to save order', 'error');
 		});
 }
@@ -366,27 +424,22 @@ style.textContent = `
 document.head.appendChild(style);
 
 // ========================================
-// INITIALIZATION - MULTIPLE METHODS
+// INITIALIZATION - WAIT FOR DOM COMPLETELY
 // ========================================
 
-// Method 1: DOMContentLoaded (standard)
-if (document.readyState === 'loading') {
-	console.log('⏳ Document still loading, waiting for DOMContentLoaded...');
-	document.addEventListener('DOMContentLoaded', initDragAndDrop);
-} else {
-	// Method 2: Document already loaded (fallback)
-	console.log('✅ Document already loaded, initializing immediately...');
-	initDragAndDrop();
-}
+// This is the CORRECT way to initialize
+window.addEventListener('DOMContentLoaded', function () {
+	setTimeout(function () {
+		initDragAndDrop();
+	}, 100);
+});
 
-// Method 3: Additional fallback with slight delay
-setTimeout(() => {
+window.addEventListener('load', function () {
 	const sportsGrid = document.getElementById('sportsGrid');
-	if (sportsGrid && sportsGrid.querySelectorAll('.sport-card').length > 0) {
-		console.log('🔄 Fallback initialization check...');
-		// Only reinitialize if not already done
-		if (!draggedElement && sportsGrid.querySelectorAll('.sport-card[draggable="true"]').length === 0) {
+	if (sportsGrid) {
+		const sportCards = sportsGrid.querySelectorAll('.sport-card[draggable="true"]');
+		if (sportCards.length === 0) {
 			initDragAndDrop();
 		}
 	}
-}, 500);
+});
