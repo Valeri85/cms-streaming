@@ -201,56 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
-    <style>
-        .logo-preview {
-            width: 64px;
-            height: 64px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            margin: 10px 0;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .logo-preview img {
-            max-width: 48px;
-            max-height: 48px;
-            object-fit: contain;
-        }
-        .logo-preview.empty {
-            color: white;
-            font-size: 32px;
-        }
-        .file-upload-wrapper {
-            position: relative;
-        }
-        .file-upload-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 12px 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s;
-        }
-        .file-upload-label:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        .file-upload-input {
-            display: none;
-        }
-        .file-name-display {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-    </style>
+    <link rel="stylesheet" href="css/website-edit.css">
 </head>
 <body>
     <div class="cms-layout">
@@ -388,29 +339,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </main>
     </div>
     
-    <script>
-        document.getElementById('primary_color').addEventListener('input', function(e) {
-            e.target.nextElementSibling.value = e.target.value;
-        });
-        
-        document.getElementById('secondary_color').addEventListener('input', function(e) {
-            e.target.nextElementSibling.value = e.target.value;
-        });
-        
-        document.getElementById('logo_file').addEventListener('change', function(e) {
-            const fileName = e.target.files[0]?.name || 'No file chosen';
-            document.getElementById('logoFileName').textContent = fileName;
-            
-            if (e.target.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const preview = document.getElementById('logoPreview');
-                    preview.innerHTML = '<img src="' + event.target.result + '" alt="Logo Preview" id="currentLogoImg">';
-                    preview.classList.remove('empty');
-                };
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
-    </script>
+    <script src="js/website-edit.js"></script>
 </body>
 </html>

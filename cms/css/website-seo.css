@@ -1,0 +1,72 @@
+.seo-accordion {
+	margin-bottom: 15px;
+}
+
+.seo-accordion details {
+	background: #fff;
+	border: 1px solid #e9ecef;
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.seo-accordion summary {
+	padding: 20px;
+	cursor: pointer;
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-weight: 600;
+	color: #2c3e50;
+	font-size: 16px;
+	background: #f8f9fa;
+	transition: background 0.3s;
+}
+
+.seo-accordion summary::-webkit-details-marker {
+	display: none;
+}
+
+.seo-accordion summary:hover {
+	background: #e9ecef;
+}
+
+.seo-accordion details[open] summary {
+	background: #e9ecef;
+	border-bottom: 1px solid #dee2e6;
+}
+
+.seo-accordion-content {
+	padding: 25px;
+}
+
+.status-indicator {
+	font-size: 12px;
+	margin-right: 5px;
+}
+
+.accordion-title {
+	flex: 1;
+}
+
+.sports-count-info {
+	background: #e8f5e9;
+	padding: 15px;
+	border-radius: 8px;
+	margin-bottom: 20px;
+	color: #2e7d32;
+	font-weight: 600;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.page-seo-section {
+	margin-bottom: 30px;
+}
+
+.page-seo-section h3 {
+	color: #2c3e50;
+	margin-bottom: 15px;
+	font-size: 18px;
+}

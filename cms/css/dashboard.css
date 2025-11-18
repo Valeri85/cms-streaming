@@ -1,0 +1,11 @@
+.action-buttons {
+	display: flex;
+	gap: 5px;
+	flex-wrap: wrap;
+}
+
+.logo-with-name {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
