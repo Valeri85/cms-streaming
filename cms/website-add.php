@@ -25,26 +25,26 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// UPDATED FUNCTION: Now adds "-logo" suffix to filename
-function sanitizeSiteName($siteName) {
-    // Convert to lowercase
-    $filename = strtolower($siteName);
-    // Replace spaces with hyphens
-    $filename = str_replace(' ', '-', $filename);
-    // Remove any characters that aren't alphanumeric or hyphens
-    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    // Remove multiple consecutive hyphens
-    $filename = preg_replace('/-+/', '-', $filename);
-    // Trim hyphens from start/end
-    $filename = trim($filename, '-');
+// NEW FUNCTION: Generate canonical URL
+function generateCanonicalUrl($domain) {
+    // Normalize domain (remove www if present)
+    $normalized = str_replace('www.', '', strtolower(trim($domain)));
     
-    // Add "-logo" suffix
+    // Generate canonical URL with https:// and www.
+    return 'https://www.' . $normalized;
+}
+
+function sanitizeSiteName($siteName) {
+    $filename = strtolower($siteName);
+    $filename = str_replace(' ', '-', $filename);
+    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
+    $filename = preg_replace('/-+/', '-', $filename);
+    $filename = trim($filename, '-');
     $filename = $filename . '-logo';
     
     return $filename;
 }
 
-// UPDATED FUNCTION: Now uses meaningful filename based on site name
 function handleLogoUpload($file, $uploadDir, $siteName) {
     $allowedTypes = ['image/webp', 'image/svg+xml'];
     $allowedExtensions = ['webp', 'svg'];
@@ -57,7 +57,6 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
     $mimeType = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     
-    // Check AVIF
     if (strpos($file['name'], '.avif') !== false) {
         $mimeType = 'image/avif';
         $allowedTypes[] = 'image/avif';
@@ -73,17 +72,14 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
         return ['error' => 'Invalid file extension'];
     }
     
-    // NEW: Create meaningful filename from site name
     $sanitizedName = sanitizeSiteName($siteName);
     $filename = $sanitizedName . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    // NEW: Delete existing file if it exists (to replace old logo)
     if (file_exists($filepath)) {
         unlink($filepath);
     }
     
-    // For raster images (WEBP, AVIF), resize to 64x64
     if (in_array($extension, ['webp', 'avif'])) {
         if (!extension_loaded('gd')) {
             return ['error' => 'GD extension not available'];
@@ -134,7 +130,6 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
         imagedestroy($sourceImage);
         imagedestroy($targetImage);
     } else {
-        // For SVG, just copy
         if (!move_uploaded_file($file['tmp_name'], $filepath)) {
             return ['error' => 'Failed to save file'];
         }
@@ -176,9 +171,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logo = '';
     
     if ($siteName && $domain) {
+        // Normalize domain (remove www. prefix)
+        $normalizedDomain = str_replace('www.', '', strtolower(trim($domain)));
+        
         $domainExists = false;
         foreach ($websites as $website) {
-            if ($website['domain'] === $domain) {
+            if ($website['domain'] === $normalizedDomain) {
                 $domainExists = true;
                 break;
             }
@@ -187,7 +185,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($domainExists) {
             $error = 'Domain already exists!';
         } else {
-            // Handle logo upload with site name
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                 $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
@@ -208,9 +205,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $sportsList = getSportsListForNewWebsite($websites);
                 
+                // NEW: Generate canonical URL
+                $canonicalUrl = generateCanonicalUrl($normalizedDomain);
+                
                 $newWebsite = [
                     'id' => $newId,
-                    'domain' => $domain,
+                    'domain' => $normalizedDomain,
+                    'canonical_url' => $canonicalUrl,
                     'site_name' => $siteName,
                     'logo' => $logo,
                     'primary_color' => $primaryColor,
@@ -256,6 +257,36 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
     <title>Add Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/website-add.css">
+    <style>
+        .tooltip-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .canonical-preview {
+            font-family: monospace;
+            color: #3498db;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -319,7 +350,13 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($_POST['domain'] ?? ''); ?>" required placeholder="example.com">
-                                <small>Without http:// or www.</small>
+                                <small>Without http:// or www. (www. will be removed automatically)</small>
+                                
+                                <!-- NEW: Canonical URL Tooltip -->
+                                <div class="tooltip-info">
+                                    <span class="tooltip-icon">i</span>
+                                    <span>Canonical URL will be: <span class="canonical-preview" id="canonicalPreview">https://www.example.com</span></span>
+                                </div>
                             </div>
                         </div>
                         
@@ -390,5 +427,22 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
     </div>
     
     <script src="js/website-add.js"></script>
+    <script>
+        // NEW: Real-time canonical URL preview
+        document.getElementById('domain').addEventListener('input', function(e) {
+            let domain = e.target.value.trim();
+            
+            // Remove www. prefix if present
+            domain = domain.replace(/^www\./i, '');
+            
+            // Remove http:// or https:// if present
+            domain = domain.replace(/^https?:\/\//i, '');
+            
+            // Generate canonical URL preview
+            let canonical = 'https://www.' + (domain || 'example.com');
+            
+            document.getElementById('canonicalPreview').textContent = canonical;
+        });
+    </script>
 </body>
 </html>

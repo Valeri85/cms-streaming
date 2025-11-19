@@ -26,6 +26,15 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
+// NEW FUNCTION: Generate canonical URL
+function generateCanonicalUrl($domain) {
+    // Normalize domain (remove www if present)
+    $normalized = str_replace('www.', '', strtolower(trim($domain)));
+    
+    // Generate canonical URL with https:// and www.
+    return 'https://www.' . $normalized;
+}
+
 function sanitizeSiteName($siteName) {
     $filename = strtolower($siteName);
     $filename = str_replace(' ', '-', $filename);
@@ -129,7 +138,6 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
     return ['success' => true, 'filename' => $filename];
 }
 
-// Helper function to normalize domain (remove www. prefix)
 function normalizeDomain($domain) {
     return str_replace('www.', '', strtolower(trim($domain)));
 }
@@ -170,11 +178,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $language = trim($_POST['language'] ?? 'en');
         $status = $_POST['status'] ?? 'active';
         
-        // ✅ FIX: Normalize domain (remove www. if present)
+        // Normalize domain
         $domain = normalizeDomain($domain);
         
         if ($siteName && $domain) {
-            // Handle logo upload if new file provided
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                 $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
@@ -192,7 +199,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
-                // If site name changed, rename logo file
                 if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
                     $oldLogoFile = $website['logo'];
                     $oldLogoPath = $uploadDir . $oldLogoFile;
@@ -209,7 +215,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
+                // NEW: Generate canonical URL
+                $canonicalUrl = generateCanonicalUrl($domain);
+                
                 $websites[$websiteIndex]['domain'] = $domain;
+                $websites[$websiteIndex]['canonical_url'] = $canonicalUrl;
                 $websites[$websiteIndex]['site_name'] = $siteName;
                 $websites[$websiteIndex]['primary_color'] = $primaryColor;
                 $websites[$websiteIndex]['secondary_color'] = $secondaryColor;
@@ -223,12 +233,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (file_put_contents($configFile, $jsonContent)) {
                     $success = 'Website updated successfully!';
                     
-                    // ✅ FIX: Reload website data after successful save
                     $configContent = file_get_contents($configFile);
                     $configData = json_decode($configContent, true);
                     $websites = $configData['websites'] ?? [];
                     
-                    // Find updated website
                     foreach ($websites as $site) {
                         if ($site['id'] == $websiteId) {
                             $website = $site;
@@ -280,6 +288,56 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     <title>Edit Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/website-edit.css">
+    <style>
+        .tooltip-info {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+            color: #666;
+            font-size: 13px;
+        }
+        
+        .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .canonical-preview {
+            font-family: monospace;
+            color: #3498db;
+            font-weight: 600;
+        }
+        
+        .current-canonical {
+            background: #e8f5e9;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border-left: 4px solid #4caf50;
+        }
+        
+        .current-canonical strong {
+            color: #2e7d32;
+        }
+        
+        .current-canonical code {
+            background: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            color: #2e7d32;
+        }
+    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -322,6 +380,13 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                     <p><strong>✅ Correct format:</strong> <code>sportlemons.info</code> or <code>example.com</code></p>
                     <p><strong>❌ Don't include:</strong> <code>www.</code> prefix - it will be removed automatically</p>
                     <p><strong>Current domain:</strong> <code><?php echo htmlspecialchars($website['domain']); ?></code></p>
+                    
+                    <!-- NEW: Show current canonical URL -->
+                    <?php if (isset($website['canonical_url'])): ?>
+                        <div class="current-canonical">
+                            <strong>🔗 Current Canonical URL:</strong> <code><?php echo htmlspecialchars($website['canonical_url']); ?></code>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="icon-info" style="margin-top: 15px;">
@@ -350,6 +415,12 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="example.com">
                                 <small>Without http:// or www. (www. will be removed automatically)</small>
+                                
+                                <!-- NEW: Canonical URL Tooltip -->
+                                <div class="tooltip-info">
+                                    <span class="tooltip-icon">i</span>
+                                    <span>Canonical URL will be: <span class="canonical-preview" id="canonicalPreview"><?php echo isset($website['canonical_url']) ? htmlspecialchars($website['canonical_url']) : 'https://www.example.com'; ?></span></span>
+                                </div>
                             </div>
                         </div>
                         
@@ -431,5 +502,22 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     </div>
     
     <script src="js/website-edit.js"></script>
+    <script>
+        // NEW: Real-time canonical URL preview
+        document.getElementById('domain').addEventListener('input', function(e) {
+            let domain = e.target.value.trim();
+            
+            // Remove www. prefix if present
+            domain = domain.replace(/^www\./i, '');
+            
+            // Remove http:// or https:// if present
+            domain = domain.replace(/^https?:\/\//i, '');
+            
+            // Generate canonical URL preview
+            let canonical = 'https://www.' + (domain || 'example.com');
+            
+            document.getElementById('canonicalPreview').textContent = canonical;
+        });
+    </script>
 </body>
 </html>
