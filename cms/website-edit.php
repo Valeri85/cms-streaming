@@ -26,21 +26,16 @@ if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
 }
 
-// UPDATED FUNCTION: Now adds "-logo" suffix to filename
 function sanitizeSiteName($siteName) {
     $filename = strtolower($siteName);
     $filename = str_replace(' ', '-', $filename);
     $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
     $filename = preg_replace('/-+/', '-', $filename);
     $filename = trim($filename, '-');
-    
-    // Add "-logo" suffix
     $filename = $filename . '-logo';
-    
     return $filename;
 }
 
-// UPDATED FUNCTION: Now uses meaningful filename based on site name
 function handleLogoUpload($file, $uploadDir, $siteName) {
     $allowedTypes = ['image/webp', 'image/svg+xml'];
     $allowedExtensions = ['webp', 'svg'];
@@ -68,12 +63,10 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
         return ['error' => 'Invalid file extension'];
     }
     
-    // NEW: Create meaningful filename from site name
     $sanitizedName = sanitizeSiteName($siteName);
     $filename = $sanitizedName . '.' . $extension;
     $filepath = $uploadDir . $filename;
     
-    // NEW: Delete existing file if it exists (to replace old logo)
     if (file_exists($filepath)) {
         unlink($filepath);
     }
@@ -136,6 +129,11 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
     return ['success' => true, 'filename' => $filename];
 }
 
+// Helper function to normalize domain (remove www. prefix)
+function normalizeDomain($domain) {
+    return str_replace('www.', '', strtolower(trim($domain)));
+}
+
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
@@ -172,12 +170,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $language = trim($_POST['language'] ?? 'en');
         $status = $_POST['status'] ?? 'active';
         
+        // ✅ FIX: Normalize domain (remove www. if present)
+        $domain = normalizeDomain($domain);
+        
         if ($siteName && $domain) {
             // Handle logo upload if new file provided
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                 $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
-                    // Delete old logo if exists and is different
                     if (!empty($website['logo'])) {
                         $oldLogoPath = $uploadDir . $website['logo'];
                         if (file_exists($oldLogoPath) && $oldLogoPath !== $uploadDir . $uploadResult['filename']) {
@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
-                // NEW: If site name changed, rename logo file
+                // If site name changed, rename logo file
                 if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
                     $oldLogoFile = $website['logo'];
                     $oldLogoPath = $uploadDir . $oldLogoFile;
@@ -221,8 +221,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
                 if (file_put_contents($configFile, $jsonContent)) {
-                    // REMOVED: .htaccess generation - it was breaking the site
                     $success = 'Website updated successfully!';
+                    
+                    // ✅ FIX: Reload website data after successful save
+                    $configContent = file_get_contents($configFile);
+                    $configData = json_decode($configContent, true);
+                    $websites = $configData['websites'] ?? [];
+                    
+                    // Find updated website
+                    foreach ($websites as $site) {
+                        if ($site['id'] == $websiteId) {
+                            $website = $site;
+                            break;
+                        }
+                    }
+                    
+                    $previewDomain = $website['domain'];
                 } else {
                     $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
                 }
@@ -233,7 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// FIXED: Function to generate base64 data URL for logo preview in CMS
 function getLogoPreviewData($logoFilename, $uploadDir) {
     if (empty($logoFilename) || !preg_match('/\.(webp|svg|avif)$/i', $logoFilename)) {
         return null;
@@ -245,7 +258,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
         return null;
     }
     
-    // Get MIME type
     $extension = strtolower(pathinfo($logoFilename, PATHINFO_EXTENSION));
     $mimeTypes = [
         'webp' => 'image/webp',
@@ -254,7 +266,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     ];
     $mimeType = $mimeTypes[$extension] ?? 'image/png';
     
-    // Read file and encode as base64
     $imageData = file_get_contents($filepath);
     $base64 = base64_encode($imageData);
     
@@ -307,7 +318,14 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                 <?php endif; ?>
                 
                 <div class="icon-info">
-                    <h3>📝 Logo File Naming</h3>
+                    <h3>📝 Domain Name Rules</h3>
+                    <p><strong>✅ Correct format:</strong> <code>sportlemons.info</code> or <code>example.com</code></p>
+                    <p><strong>❌ Don't include:</strong> <code>www.</code> prefix - it will be removed automatically</p>
+                    <p><strong>Current domain:</strong> <code><?php echo htmlspecialchars($website['domain']); ?></code></p>
+                </div>
+                
+                <div class="icon-info" style="margin-top: 15px;">
+                    <h3>🖼️ Logo File Naming</h3>
                     <p><strong>Your logo is saved as: </strong>
                         <?php if (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])): ?>
                             <code><?php echo htmlspecialchars($website['logo']); ?></code>
@@ -331,7 +349,7 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="example.com">
-                                <small>Without http:// or www.</small>
+                                <small>Without http:// or www. (www. will be removed automatically)</small>
                             </div>
                         </div>
                         
@@ -340,7 +358,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo empty($website['logo']) || !preg_match('/\.(webp|svg|avif)$/i', $website['logo']) ? 'empty' : ''; ?>">
                                     <?php 
-                                    // FIXED: Use base64 data URL instead of HTTP URL
                                     $logoDataUrl = getLogoPreviewData($website['logo'], $uploadDir);
                                     if ($logoDataUrl): 
                                     ?>
