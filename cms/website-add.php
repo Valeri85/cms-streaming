@@ -257,36 +257,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
     <title>Add Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/website-add.css">
-    <style>
-        .tooltip-info {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 5px;
-            color: #666;
-            font-size: 13px;
-        }
-        
-        .tooltip-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            background: #3498db;
-            color: white;
-            border-radius: 50%;
-            font-size: 12px;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-        
-        .canonical-preview {
-            font-family: monospace;
-            color: #3498db;
-            font-weight: 600;
-        }
-    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -327,16 +297,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                     </div>
                 <?php endif; ?>
                 
-                <div class="icon-info">
-                    <h3>📝 Logo File Naming</h3>
-                    <p><strong>Logos are now saved with meaningful names based on site name:</strong></p>
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>"SportLemons" → <code>sportlemons-logo.webp</code></li>
-                        <li>"Watch Live Sport" → <code>watch-live-sport-logo.webp</code></li>
-                        <li>"My Sports TV" → <code>my-sports-tv-logo.svg</code></li>
-                    </ul>
-                </div>
-                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -350,13 +310,6 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($_POST['domain'] ?? ''); ?>" required placeholder="example.com">
-                                <small>Without http:// or www. (www. will be removed automatically)</small>
-                                
-                                <!-- NEW: Canonical URL Tooltip -->
-                                <div class="tooltip-info">
-                                    <span class="tooltip-icon">i</span>
-                                    <span>Canonical URL will be: <span class="canonical-preview" id="canonicalPreview">https://www.example.com</span></span>
-                                </div>
                             </div>
                         </div>
                         
@@ -427,22 +380,5 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
     </div>
     
     <script src="js/website-add.js"></script>
-    <script>
-        // NEW: Real-time canonical URL preview
-        document.getElementById('domain').addEventListener('input', function(e) {
-            let domain = e.target.value.trim();
-            
-            // Remove www. prefix if present
-            domain = domain.replace(/^www\./i, '');
-            
-            // Remove http:// or https:// if present
-            domain = domain.replace(/^https?:\/\//i, '');
-            
-            // Generate canonical URL preview
-            let canonical = 'https://www.' + (domain || 'example.com');
-            
-            document.getElementById('canonicalPreview').textContent = canonical;
-        });
-    </script>
 </body>
 </html>

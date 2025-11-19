@@ -288,56 +288,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     <title>Edit Website - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/website-edit.css">
-    <style>
-        .tooltip-info {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 5px;
-            color: #666;
-            font-size: 13px;
-        }
-        
-        .tooltip-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            background: #3498db;
-            color: white;
-            border-radius: 50%;
-            font-size: 12px;
-            font-weight: bold;
-            flex-shrink: 0;
-        }
-        
-        .canonical-preview {
-            font-family: monospace;
-            color: #3498db;
-            font-weight: 600;
-        }
-        
-        .current-canonical {
-            background: #e8f5e9;
-            padding: 10px 15px;
-            border-radius: 8px;
-            margin-top: 10px;
-            border-left: 4px solid #4caf50;
-        }
-        
-        .current-canonical strong {
-            color: #2e7d32;
-        }
-        
-        .current-canonical code {
-            background: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-            color: #2e7d32;
-        }
-    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -375,32 +325,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
-                <div class="icon-info">
-                    <h3>📝 Domain Name Rules</h3>
-                    <p><strong>✅ Correct format:</strong> <code>sportlemons.info</code> or <code>example.com</code></p>
-                    <p><strong>❌ Don't include:</strong> <code>www.</code> prefix - it will be removed automatically</p>
-                    <p><strong>Current domain:</strong> <code><?php echo htmlspecialchars($website['domain']); ?></code></p>
-                    
-                    <!-- NEW: Show current canonical URL -->
-                    <?php if (isset($website['canonical_url'])): ?>
-                        <div class="current-canonical">
-                            <strong>🔗 Current Canonical URL:</strong> <code><?php echo htmlspecialchars($website['canonical_url']); ?></code>
-                        </div>
-                    <?php endif; ?>
-                </div>
-                
-                <div class="icon-info" style="margin-top: 15px;">
-                    <h3>🖼️ Logo File Naming</h3>
-                    <p><strong>Your logo is saved as: </strong>
-                        <?php if (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])): ?>
-                            <code><?php echo htmlspecialchars($website['logo']); ?></code>
-                        <?php else: ?>
-                            <em>No logo file</em>
-                        <?php endif; ?>
-                    </p>
-                    <p style="margin-top: 10px;">✨ <strong>If you change the site name</strong>, the logo file will be automatically renamed to match!</p>
-                </div>
-                
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
                     <div class="form-section">
                         <h3>Basic Information</h3>
@@ -414,13 +338,6 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($website['domain']); ?>" required placeholder="example.com">
-                                <small>Without http:// or www. (www. will be removed automatically)</small>
-                                
-                                <!-- NEW: Canonical URL Tooltip -->
-                                <div class="tooltip-info">
-                                    <span class="tooltip-icon">i</span>
-                                    <span>Canonical URL will be: <span class="canonical-preview" id="canonicalPreview"><?php echo isset($website['canonical_url']) ? htmlspecialchars($website['canonical_url']) : 'https://www.example.com'; ?></span></span>
-                                </div>
                             </div>
                         </div>
                         
@@ -447,7 +364,7 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                                         <?php echo (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])) ? htmlspecialchars($website['logo']) : 'No file chosen'; ?>
                                     </div>
                                 </div>
-                                <small>WEBP, SVG, AVIF • Recommended: 64x64px • Leave empty to keep current logo</small>
+                                <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
                             </div>
                             
                             <div class="form-group">
@@ -502,22 +419,5 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     </div>
     
     <script src="js/website-edit.js"></script>
-    <script>
-        // NEW: Real-time canonical URL preview
-        document.getElementById('domain').addEventListener('input', function(e) {
-            let domain = e.target.value.trim();
-            
-            // Remove www. prefix if present
-            domain = domain.replace(/^www\./i, '');
-            
-            // Remove http:// or https:// if present
-            domain = domain.replace(/^https?:\/\//i, '');
-            
-            // Generate canonical URL preview
-            let canonical = 'https://www.' + (domain || 'example.com');
-            
-            document.getElementById('canonicalPreview').textContent = canonical;
-        });
-    </script>
 </body>
 </html>
