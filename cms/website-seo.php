@@ -68,12 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'description' => trim($_POST['home_description'] ?? '')
     ];
     
-    // Update favorites page SEO
-    $websites[$websiteIndex]['pages_seo']['favorites'] = [
-        'title' => trim($_POST['favorites_title'] ?? ''),
-        'description' => trim($_POST['favorites_description'] ?? '')
-    ];
-    
     // Update sports pages SEO
     if (!isset($websites[$websiteIndex]['pages_seo']['sports'])) {
         $websites[$websiteIndex]['pages_seo']['sports'] = [];
@@ -93,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     
     if (file_put_contents($configFile, $jsonContent)) {
-        $success = 'SEO settings updated successfully for all ' . (count($sportsArray) + 2) . ' pages!';
+        $success = 'SEO settings updated successfully for all ' . (count($sportsArray) + 1) . ' pages!';
         
         // CRITICAL: Reload website data after save to repopulate form
         $configContent = file_get_contents($configFile);
@@ -114,7 +108,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get current SEO settings or set defaults - AFTER potential reload
 $pagesSeo = $website['pages_seo'] ?? [];
 $homeSeo = $pagesSeo['home'] ?? ['title' => '', 'description' => ''];
-$favoritesSeo = $pagesSeo['favorites'] ?? ['title' => '', 'description' => ''];
 $sportsSeo = $pagesSeo['sports'] ?? [];
 
 // Function to get status indicator
@@ -204,32 +197,6 @@ function getStatusIndicator($title, $description) {
                         </div>
                     </div>
                     
-                    <!-- Favorites Page SEO -->
-                    <div class="page-seo-section">
-                        <h3>⭐ Favorites Page SEO</h3>
-                        <div class="seo-accordion">
-                            <details>
-                                <summary>
-                                    <span class="status-indicator"><?php echo getStatusIndicator($favoritesSeo['title'], $favoritesSeo['description']); ?></span>
-                                    <span class="accordion-title">Favorites Page</span>
-                                </summary>
-                                <div class="seo-accordion-content">
-                                    <div class="form-group">
-                                        <label for="favorites_title">SEO Title</label>
-                                        <input type="text" id="favorites_title" name="favorites_title" value="<?php echo htmlspecialchars($favoritesSeo['title']); ?>" placeholder="My Favorites - <?php echo htmlspecialchars($website['site_name']); ?>">
-                                        <small>Recommended: 50-60 characters</small>
-                                    </div>
-                                    
-                                    <div class="form-group">
-                                        <label for="favorites_description">SEO Description</label>
-                                        <textarea id="favorites_description" name="favorites_description" rows="3" placeholder="Your favorite sports games and streams..."><?php echo htmlspecialchars($favoritesSeo['description']); ?></textarea>
-                                        <small>Recommended: 150-160 characters</small>
-                                    </div>
-                                </div>
-                            </details>
-                        </div>
-                    </div>
-                    
                     <!-- Sports Pages SEO -->
                     <div class="page-seo-section">
                         <h3>⚽ Sports Pages SEO</h3>
@@ -270,7 +237,7 @@ function getStatusIndicator($title, $description) {
                     </div>
                     
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">Save All SEO Settings (<?php echo count($sportsArray) + 2; ?> Pages)</button>
+                        <button type="submit" class="btn btn-primary">Save All SEO Settings (<?php echo count($sportsArray) + 1; ?> Pages)</button>
                         <a href="dashboard.php" class="btn btn-outline">Cancel</a>
                     </div>
                 </form>

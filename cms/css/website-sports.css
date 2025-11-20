@@ -276,32 +276,6 @@
 	color: white;
 }
 
-.icon-info {
-	background: #e3f2fd;
-	padding: 20px;
-	border-radius: 8px;
-	margin-bottom: 30px;
-	border-left: 4px solid #2196f3;
-}
-
-.icon-info h3 {
-	color: #1565c0;
-	margin-bottom: 10px;
-}
-
-.slack-info {
-	background: #fff3cd;
-	padding: 20px;
-	border-radius: 8px;
-	margin-bottom: 30px;
-	border-left: 4px solid #ffc107;
-}
-
-.slack-info h3 {
-	color: #856404;
-	margin-bottom: 10px;
-}
-
 .debug-info {
 	background: #f0f0f0;
 	padding: 15px;

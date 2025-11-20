@@ -530,22 +530,6 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
-                <div class="icon-info">
-                    <h3>📝 Icon File Naming</h3>
-                    <p><strong>Icons are now saved with meaningful names:</strong></p>
-                    <ul style="margin: 10px 0 0 20px;">
-                        <li>"Football" → <code>football.webp</code></li>
-                        <li>"Ice Hockey" → <code>ice-hockey.webp</code></li>
-                        <li>"Beach Volleyball" → <code>beach-volleyball.webp</code></li>
-                    </ul>
-                    <p style="margin-top: 10px;"><strong>✨ Benefits:</strong> Easy to find files, rename automatically updates file, cleaner file structure</p>
-                </div>
-                
-                <div class="slack-info">
-                    <h3>📢 Slack Notifications</h3>
-                    <p>To receive notifications when new sports are added, create: <code>/var/www/u1852176/data/www/streaming/config/slack-config.json</code></p>
-                </div>
-                
                 <div class="add-sport-card">
                     <h3 style="margin-bottom: 20px; color: #2e7d32; font-size: 20px;">➕ Add New Sport Category</h3>
                     <form method="POST" enctype="multipart/form-data">
