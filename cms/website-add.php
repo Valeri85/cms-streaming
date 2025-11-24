@@ -138,22 +138,140 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
     return ['success' => true, 'filename' => $filename];
 }
 
-function getSportsListForNewWebsite($websites) {
-    if (!empty($websites)) {
-        $firstWebsite = $websites[0];
-        return $firstWebsite['sports_categories'] ?? [];
+// Load sports from master-sports.json
+function getSportsListForNewWebsite() {
+    $masterSportsFile = '/var/www/u1852176/data/www/streaming/config/master-sports.json';
+    
+    if (file_exists($masterSportsFile)) {
+        $masterSportsContent = file_get_contents($masterSportsFile);
+        $masterSportsData = json_decode($masterSportsContent, true);
+        
+        if (isset($masterSportsData['sports']) && is_array($masterSportsData['sports'])) {
+            return $masterSportsData['sports'];
+        }
     }
     
-    return [
-        'Football', 'Basketball', 'Tennis', 'Ice Hockey', 'Baseball', 'Rugby', 'Cricket', 
-        'American Football', 'Volleyball', 'Beach Volleyball', 'Handball', 'Beach Handball', 
-        'Beach Soccer', 'Aussie Rules', 'Futsal', 'Badminton', 'Netball', 'Floorball', 
-        'Combat', 'Boxing', 'MMA', 'Snooker', 'Billiard', 'Table Tennis', 'Padel Tennis', 
-        'Squash', 'Motorsport', 'Racing', 'Cycling', 'Equestrianism', 'Golf', 'Field Hockey', 
-        'Lacrosse', 'Athletics', 'Gymnastics', 'Weightlifting', 'Climbing', 'Winter Sports', 
-        'Bandy', 'Curling', 'Water Sports', 'Water Polo', 'Sailing', 'Bowling', 'Darts', 
-        'Chess', 'E-sports', 'Others'
+    // Send Slack notification if master-sports.json not found
+    sendMasterSportsNotFoundNotification();
+    
+    // Return empty array if master-sports.json not found or invalid
+    return [];
+}
+
+// Send Slack notification when master-sports.json is missing
+function sendMasterSportsNotFoundNotification() {
+    $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
+    
+    if (!file_exists($slackConfigFile)) {
+        return false;
+    }
+    
+    $slackConfig = json_decode(file_get_contents($slackConfigFile), true);
+    $slackWebhookUrl = $slackConfig['webhook_url'] ?? '';
+    
+    if (empty($slackWebhookUrl)) {
+        return false;
+    }
+    
+    $message = [
+        'text' => "🚨 *CRITICAL: master-sports.json Not Found*",
+        'blocks' => [
+            [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "⛔ *CRITICAL ERROR*\n\nAttempted to add new website but `master-sports.json` file is missing or invalid!"
+                ]
+            ],
+            [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "*File Location:*\n`/var/www/u1852176/data/www/streaming/config/master-sports.json`"
+                ]
+            ],
+            [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "*Impact:*\n• New website created with 0 sports\n• Website will have empty sports menu\n• User experience will be broken"
+                ]
+            ],
+            [
+                'type' => 'section',
+                'text' => [
+                    'type' => 'mrkdwn',
+                    'text' => "*Action Required:*\n1. Check if file exists\n2. Verify JSON format is valid\n3. Ensure file permissions are correct (644)\n4. Re-add sports to new website via CMS"
+                ]
+            ]
+        ]
     ];
+    
+    $ch = curl_init($slackWebhookUrl);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+    
+    $result = curl_exec($ch);
+    curl_close($ch);
+    
+    return $result;
+}
+
+// NEW: Create config PHP file for the website
+function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryColor, $language) {
+    $configDir = '/var/www/u1852176/data/www/streaming/config/';
+    $configFilePath = $configDir . $domain . '.php';
+    
+    // Check if file already exists
+    if (file_exists($configFilePath)) {
+        return ['error' => 'Config file already exists: ' . $domain . '.php'];
+    }
+    
+    // Prepare SEO title and description (can be updated later)
+    $seoTitle = $siteName . ' - Live Sports Streaming | Watch Games Online Free';
+    $seoDescription = 'Watch live sports streaming online free. Football, Basketball, Tennis and more. ' . $siteName . ' offers the best live sports streams in HD quality.';
+    $seoKeywords = 'live sports, sports streaming, watch sports online, free sports streams, football streaming, basketball live, ' . $siteName;
+    
+    // Generate PHP config file content
+    $phpContent = "<?php\n\n";
+    $phpContent .= "return [\n";
+    $phpContent .= "    'site_name' => '" . addslashes($siteName) . "',\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'logo' => '" . addslashes($logo) . "',\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'theme' => [\n";
+    $phpContent .= "        'primary_color' => '" . addslashes($primaryColor) . "',\n";
+    $phpContent .= "        'secondary_color' => '" . addslashes($secondaryColor) . "',\n";
+    $phpContent .= "    ],\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'seo' => [\n";
+    $phpContent .= "        'title' => '" . addslashes($seoTitle) . "',\n";
+    $phpContent .= "        'description' => '" . addslashes($seoDescription) . "',\n";
+    $phpContent .= "        'keywords' => '" . addslashes($seoKeywords) . "',\n";
+    $phpContent .= "    ],\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'language' => '" . addslashes($language) . "',\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'contact' => [\n";
+    $phpContent .= "        'email' => 'contact@" . addslashes($domain) . "',\n";
+    $phpContent .= "        'support' => 'support@" . addslashes($domain) . "',\n";
+    $phpContent .= "    ],\n";
+    $phpContent .= "    \n";
+    $phpContent .= "    'social' => [\n";
+    $phpContent .= "        'twitter' => 'https://twitter.com/" . addslashes(strtolower(str_replace(' ', '', $siteName))) . "',\n";
+    $phpContent .= "        'facebook' => 'https://facebook.com/" . addslashes(strtolower(str_replace(' ', '', $siteName))) . "',\n";
+    $phpContent .= "    ],\n";
+    $phpContent .= "];";
+    
+    // Write to file
+    if (file_put_contents($configFilePath, $phpContent)) {
+        chmod($configFilePath, 0644);
+        return ['success' => true, 'filename' => $domain . '.php'];
+    } else {
+        return ['error' => 'Failed to create config file. Check permissions: chmod 755 ' . $configDir];
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -203,39 +321,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $newId = $maxId + 1;
                 
-                $sportsList = getSportsListForNewWebsite($websites);
+                // Load sports from master-sports.json
+                $sportsList = getSportsListForNewWebsite();
                 
-                // NEW: Generate canonical URL
+                // Generate canonical URL
                 $canonicalUrl = generateCanonicalUrl($normalizedDomain);
                 
-                $newWebsite = [
-                    'id' => $newId,
-                    'domain' => $normalizedDomain,
-                    'canonical_url' => $canonicalUrl,
-                    'site_name' => $siteName,
-                    'logo' => $logo,
-                    'primary_color' => $primaryColor,
-                    'secondary_color' => $secondaryColor,
-                    'seo_title' => '',
-                    'seo_description' => '',
-                    'language' => $language,
-                    'sidebar_content' => '',
-                    'status' => $status,
-                    'sports_categories' => $sportsList,
-                    'sports_icons' => []
-                ];
+                // Create config PHP file
+                $configFileResult = createConfigFile($normalizedDomain, $siteName, $logo, $primaryColor, $secondaryColor, $language);
                 
-                $websites[] = $newWebsite;
-                $configData['websites'] = $websites;
-                
-                $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-                
-                if (file_put_contents($configFile, $jsonContent)) {
-                    $sportsCount = count($sportsList);
-                    $success = "Website added successfully with {$sportsCount} sport categories!";
-                    $_POST = [];
+                if (isset($configFileResult['error'])) {
+                    $error = $configFileResult['error'];
                 } else {
-                    $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
+                    $newWebsite = [
+                        'id' => $newId,
+                        'domain' => $normalizedDomain,
+                        'canonical_url' => $canonicalUrl,
+                        'site_name' => $siteName,
+                        'logo' => $logo,
+                        'primary_color' => $primaryColor,
+                        'secondary_color' => $secondaryColor,
+                        'seo_title' => '',
+                        'seo_description' => '',
+                        'language' => $language,
+                        'sidebar_content' => '',
+                        'status' => $status,
+                        'sports_categories' => $sportsList,
+                        'sports_icons' => []
+                    ];
+                    
+                    $websites[] = $newWebsite;
+                    $configData['websites'] = $websites;
+                    
+                    $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    
+                    if (file_put_contents($configFile, $jsonContent)) {
+                        $sportsCount = count($sportsList);
+                        $success = "Website added successfully with {$sportsCount} sport categories! Config file created: {$configFileResult['filename']}";
+                        $_POST = [];
+                    } else {
+                        $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
+                    }
                 }
             }
         }
@@ -247,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $existingWebsites = $configData['websites'] ?? [];
-$currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
+$currentSportsCount = count(getSportsListForNewWebsite());
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -310,6 +436,7 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                             <div class="form-group">
                                 <label for="domain">Domain *</label>
                                 <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($_POST['domain'] ?? ''); ?>" required placeholder="example.com">
+                                <small>Enter domain without www. or https:// (e.g., sportlemons.info)</small>
                             </div>
                         </div>
                         
@@ -368,6 +495,18 @@ $currentSportsCount = count(getSportsListForNewWebsite($existingWebsites));
                                 </div>
                             </div>
                         </div>
+                    </div>
+                    
+                    <div class="form-section" style="background: #e8f5e9; border: 2px solid #81c784;">
+                        <h3>📋 Automatic Configuration</h3>
+                        <p style="margin-bottom: 10px;">When you create this website, the system will automatically:</p>
+                        <ul style="list-style: none; padding-left: 0;">
+                            <li style="padding: 8px 0;">✅ Load <strong><?php echo $currentSportsCount; ?> sport categories</strong> from master-sports.json</li>
+                            <li style="padding: 8px 0;">✅ Create config file: <code><?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?>.php</code></li>
+                            <li style="padding: 8px 0;">✅ Generate canonical URL: <code>https://www.<?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?></code></li>
+                            <li style="padding: 8px 0;">✅ Set up basic SEO structure</li>
+                        </ul>
+                        <p style="margin-top: 15px; color: #2e7d32; font-weight: 600;">⚠️ After creation, remember to configure SEO for each sport page!</p>
                     </div>
                     
                     <div class="form-actions">
