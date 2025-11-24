@@ -1,30 +1,27 @@
 // Get preview domain from PHP
 const previewDomain = document.body.dataset.previewDomain || '';
 
-// ========================================
+// ==========================================
 // SCROLL POSITION MANAGEMENT
-// ========================================
+// ==========================================
 
-// Save scroll position before any form submit
 function saveScrollPosition() {
 	const scrollPos = window.pageYOffset || document.documentElement.scrollTop;
-	sessionStorage.setItem('sportsPageScrollPos', scrollPos);
+	sessionStorage.setItem('pagesScrollPos', scrollPos);
 }
 
-// Restore scroll position after page load
 function restoreScrollPosition() {
-	const scrollPos = sessionStorage.getItem('sportsPageScrollPos');
+	const scrollPos = sessionStorage.getItem('pagesScrollPos');
 	if (scrollPos) {
 		window.scrollTo(0, parseInt(scrollPos));
-		sessionStorage.removeItem('sportsPageScrollPos');
+		sessionStorage.removeItem('pagesScrollPos');
 	}
 }
 
-// Initialize scroll position restoration on page load
 window.addEventListener('DOMContentLoaded', function () {
 	restoreScrollPosition();
 
-	// Also handle the "Add New Sport" form at top of page
+	// Handle "Add New Sport" form at top
 	const addSportForm = document.querySelector('form[method="POST"][enctype="multipart/form-data"]');
 	if (addSportForm && addSportForm.querySelector('button[name="add_sport"]')) {
 		addSportForm.addEventListener('submit', function (e) {
@@ -33,7 +30,11 @@ window.addEventListener('DOMContentLoaded', function () {
 	}
 });
 
-// File upload preview for new sport icon
+// ==========================================
+// FILE UPLOAD PREVIEWS
+// ==========================================
+
+// Preview for NEW sport icon
 document.addEventListener('DOMContentLoaded', function () {
 	const newSportIcon = document.getElementById('new_sport_icon');
 	if (newSportIcon) {
@@ -46,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 	}
 
-	// File upload preview for edit sport icon
+	// Preview for EDIT sport icon (in modal)
 	const sportIconFile = document.getElementById('sportIconFile');
 	if (sportIconFile) {
 		sportIconFile.addEventListener('change', function (e) {
@@ -71,10 +72,15 @@ document.addEventListener('DOMContentLoaded', function () {
 	}
 });
 
-// Open icon upload modal
+// ==========================================
+// ICON UPLOAD MODAL
+// Shows current sport name in title
+// ==========================================
+
 function openIconModal(sportName, currentIcon) {
 	const iconModal = document.getElementById('iconModal');
 	const iconSportName = document.getElementById('iconSportName');
+	const modalTitle = document.getElementById('iconModalTitle');
 	const preview = document.getElementById('iconPreviewContainer');
 	const iconName = document.getElementById('currentIconName');
 	const fileDisplay = document.getElementById('editSportFileName');
@@ -82,10 +88,16 @@ function openIconModal(sportName, currentIcon) {
 
 	if (!iconModal || !iconSportName) return;
 
+	// Set sport name in hidden field
 	iconSportName.value = sportName;
 
+	// UPDATE: Set sport name in modal title
+	if (modalTitle) {
+		modalTitle.textContent = 'Upload/Change Icon - ' + sportName;
+	}
+
+	// Show current icon preview
 	if (currentIcon && preview && iconName) {
-		// FIX: Icon URL should point to streaming website with www.
 		const iconUrl = 'https://www.' + previewDomain + '/images/sports/' + currentIcon + '?v=' + Date.now();
 		preview.innerHTML =
 			'<img src="' +
@@ -101,13 +113,13 @@ function openIconModal(sportName, currentIcon) {
 		iconName.textContent = 'No icon';
 	}
 
+	// Reset file input
 	if (fileDisplay) fileDisplay.textContent = 'No file chosen';
 	if (sportIconFile) sportIconFile.value = '';
 
 	iconModal.classList.add('active');
 }
 
-// Close icon modal
 function closeIconModal() {
 	const iconModal = document.getElementById('iconModal');
 	if (iconModal) {
@@ -115,22 +127,33 @@ function closeIconModal() {
 	}
 }
 
-// Open rename modal
+// ==========================================
+// RENAME MODAL
+// Shows current sport name in title and updates after rename
+// ==========================================
+
 function openRenameModal(sportName) {
 	const renameModal = document.getElementById('renameModal');
 	const oldSportName = document.getElementById('oldSportName');
 	const newSportNameInput = document.getElementById('newSportNameInput');
+	const modalTitle = document.getElementById('renameModalTitle');
 
 	if (!renameModal || !oldSportName || !newSportNameInput) return;
 
+	// Set old sport name
 	oldSportName.value = sportName;
 	newSportNameInput.value = sportName;
+
+	// UPDATE: Set sport name in modal title
+	if (modalTitle) {
+		modalTitle.textContent = 'Rename Sport - ' + sportName;
+	}
+
 	renameModal.classList.add('active');
 	newSportNameInput.focus();
 	newSportNameInput.select();
 }
 
-// Close rename modal
 function closeRenameModal() {
 	const renameModal = document.getElementById('renameModal');
 	if (renameModal) {
@@ -138,8 +161,12 @@ function closeRenameModal() {
 	}
 }
 
-// Close modals when clicking outside
+// ==========================================
+// MODAL EVENT LISTENERS
+// ==========================================
+
 document.addEventListener('DOMContentLoaded', function () {
+	// Close icon modal on outside click
 	const iconModal = document.getElementById('iconModal');
 	if (iconModal) {
 		iconModal.addEventListener('click', function (e) {
@@ -154,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
+	// Close rename modal on outside click
 	const renameModal = document.getElementById('renameModal');
 	if (renameModal) {
 		renameModal.addEventListener('click', function (e) {
@@ -168,6 +196,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		}
 	}
 
+	// Save scroll position for delete icon forms
 	const deleteIconForms = document.querySelectorAll('form[onsubmit*="Delete icon"]');
 	deleteIconForms.forEach(form => {
 		form.addEventListener('submit', function (e) {
@@ -175,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
 		});
 	});
 
+	// Save scroll position for delete sport forms
 	const deleteSportForms = document.querySelectorAll('form button[name="delete_sport"]');
 	deleteSportForms.forEach(button => {
 		const form = button.closest('form');
@@ -186,30 +216,31 @@ document.addEventListener('DOMContentLoaded', function () {
 	});
 });
 
-// ========================================
-// DRAG AND DROP FUNCTIONALITY WITH AUTO-SCROLL
-// ========================================
+// ==========================================
+// DRAG AND DROP WITH CONFIRMATION MODAL
+// ==========================================
 
 let draggedElement = null;
 let draggedIndex = null;
 let autoScrollInterval = null;
+let pendingOrder = null; // Store the new order before confirmation
 
 function initDragAndDrop() {
-	const sportsGrid = document.getElementById('sportsGrid');
-	if (!sportsGrid) {
+	const accordionsContainer = document.getElementById('pagesAccordions');
+	if (!accordionsContainer) {
 		return;
 	}
 
-	const sportCards = sportsGrid.querySelectorAll('.sport-card');
+	const accordions = accordionsContainer.querySelectorAll('details');
 
-	if (sportCards.length === 0) {
+	if (accordions.length === 0) {
 		return;
 	}
 
-	sportCards.forEach((card, index) => {
-		card.setAttribute('draggable', 'true');
+	accordions.forEach((details, index) => {
+		details.setAttribute('draggable', 'true');
 
-		card.addEventListener('dragstart', function (e) {
+		details.addEventListener('dragstart', function (e) {
 			draggedElement = this;
 			draggedIndex = index;
 			this.classList.add('dragging');
@@ -222,16 +253,16 @@ function initDragAndDrop() {
 			startAutoScroll();
 		});
 
-		card.addEventListener('dragend', function (e) {
+		details.addEventListener('dragend', function (e) {
 			this.classList.remove('dragging');
 			this.style.opacity = '1';
 
 			stopAutoScroll();
 
-			sportCards.forEach(c => c.classList.remove('drag-over'));
+			accordions.forEach(d => d.classList.remove('drag-over'));
 		});
 
-		card.addEventListener('dragover', function (e) {
+		details.addEventListener('dragover', function (e) {
 			e.preventDefault();
 			e.dataTransfer.dropEffect = 'move';
 
@@ -244,38 +275,40 @@ function initDragAndDrop() {
 			return false;
 		});
 
-		card.addEventListener('dragenter', function (e) {
+		details.addEventListener('dragenter', function (e) {
 			e.preventDefault();
 			if (this !== draggedElement) {
 				this.classList.add('drag-over');
 			}
 		});
 
-		card.addEventListener('dragleave', function (e) {
+		details.addEventListener('dragleave', function (e) {
 			this.classList.remove('drag-over');
 		});
 
-		card.addEventListener('drop', function (e) {
+		details.addEventListener('drop', function (e) {
 			e.stopPropagation();
 			e.preventDefault();
 
 			this.classList.remove('drag-over');
 
 			if (draggedElement !== this) {
-				const allCards = Array.from(sportsGrid.querySelectorAll('.sport-card'));
+				const allDetails = Array.from(accordionsContainer.querySelectorAll('details'));
 				const draggedCard = draggedElement;
 				const targetCard = this;
 
-				const draggedPos = allCards.indexOf(draggedCard);
-				const targetPos = allCards.indexOf(targetCard);
+				const draggedPos = allDetails.indexOf(draggedCard);
+				const targetPos = allDetails.indexOf(targetCard);
 
+				// Move the element in DOM
 				if (draggedPos < targetPos) {
 					targetCard.parentNode.insertBefore(draggedCard, targetCard.nextSibling);
 				} else {
 					targetCard.parentNode.insertBefore(draggedCard, targetCard);
 				}
 
-				saveNewOrder();
+				// Show confirmation modal
+				showSaveOrderModal();
 			}
 
 			return false;
@@ -283,13 +316,13 @@ function initDragAndDrop() {
 	});
 }
 
-// ========================================
-// AUTO-SCROLL FUNCTIONALITY
-// ========================================
+// ==========================================
+// AUTO-SCROLL DURING DRAG
+// ==========================================
 
 let mouseY = 0;
-const SCROLL_THRESHOLD = 100; // Distance from edge to trigger scroll (pixels)
-const SCROLL_SPEED = 8; // Pixels per frame
+const SCROLL_THRESHOLD = 100;
+const SCROLL_SPEED = 8;
 
 function updateMousePosition(e) {
 	mouseY = e.clientY;
@@ -329,21 +362,49 @@ function stopAutoScroll() {
 	}
 }
 
-// ========================================
-// SAVE NEW ORDER
-// ========================================
+// ==========================================
+// SAVE ORDER CONFIRMATION MODAL
+// ==========================================
+
+function showSaveOrderModal() {
+	const modal = document.getElementById('saveOrderModal');
+	if (modal) {
+		modal.classList.add('active');
+	}
+}
+
+function closeSaveOrderModal() {
+	const modal = document.getElementById('saveOrderModal');
+	if (modal) {
+		modal.classList.remove('active');
+	}
+}
+
+function cancelOrderChange() {
+	// Reload page to restore original order
+	location.reload();
+}
+
+function confirmSaveOrder() {
+	closeSaveOrderModal();
+	saveNewOrder();
+}
+
+// ==========================================
+// SAVE NEW ORDER TO SERVER
+// ==========================================
 
 function saveNewOrder() {
-	const sportsGrid = document.getElementById('sportsGrid');
-	if (!sportsGrid) {
+	const accordionsContainer = document.getElementById('pagesAccordions');
+	if (!accordionsContainer) {
 		return;
 	}
 
-	const sportCards = sportsGrid.querySelectorAll('.sport-card');
+	const accordions = accordionsContainer.querySelectorAll('details');
 
 	const newOrder = [];
-	sportCards.forEach((card, index) => {
-		const sportName = card.getAttribute('data-sport-name');
+	accordions.forEach((details, index) => {
+		const sportName = details.getAttribute('data-sport-name');
 		if (sportName) {
 			newOrder.push(sportName);
 		}
@@ -367,27 +428,12 @@ function saveNewOrder() {
 }
 
 function showNotification(message, type) {
-	// Create notification element
 	const notification = document.createElement('div');
 	notification.className = 'drag-notification ' + type;
 	notification.textContent = message;
-	notification.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 25px;
-        background: ${type === 'success' ? '#27ae60' : '#e74c3c'};
-        color: white;
-        border-radius: 8px;
-        font-weight: 600;
-        z-index: 10000;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        animation: slideIn 0.3s ease;
-    `;
 
 	document.body.appendChild(notification);
 
-	// Remove after 3 seconds
 	setTimeout(() => {
 		notification.style.animation = 'slideOut 0.3s ease';
 		setTimeout(() => {
@@ -396,38 +442,10 @@ function showNotification(message, type) {
 	}, 3000);
 }
 
-// Add CSS animations
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideIn {
-        from {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
-    }
-    
-    @keyframes slideOut {
-        from {
-            transform: translateX(0);
-            opacity: 1;
-        }
-        to {
-            transform: translateX(400px);
-            opacity: 0;
-        }
-    }
-`;
-document.head.appendChild(style);
+// ==========================================
+// INITIALIZATION
+// ==========================================
 
-// ========================================
-// INITIALIZATION - WAIT FOR DOM COMPLETELY
-// ========================================
-
-// This is the CORRECT way to initialize
 window.addEventListener('DOMContentLoaded', function () {
 	setTimeout(function () {
 		initDragAndDrop();
@@ -435,11 +453,23 @@ window.addEventListener('DOMContentLoaded', function () {
 });
 
 window.addEventListener('load', function () {
-	const sportsGrid = document.getElementById('sportsGrid');
-	if (sportsGrid) {
-		const sportCards = sportsGrid.querySelectorAll('.sport-card[draggable="true"]');
-		if (sportCards.length === 0) {
+	const accordionsContainer = document.getElementById('pagesAccordions');
+	if (accordionsContainer) {
+		const accordions = accordionsContainer.querySelectorAll('details[draggable="true"]');
+		if (accordions.length === 0) {
 			initDragAndDrop();
 		}
+	}
+});
+
+// Close modals on outside click
+document.addEventListener('DOMContentLoaded', function () {
+	const saveOrderModal = document.getElementById('saveOrderModal');
+	if (saveOrderModal) {
+		saveOrderModal.addEventListener('click', function (e) {
+			if (e.target === this) {
+				cancelOrderChange();
+			}
+		});
 	}
 });

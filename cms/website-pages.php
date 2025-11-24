@@ -33,20 +33,127 @@ if (!is_writable($uploadDir)) {
     die("Upload directory is not writable: " . $uploadDir . " - Please run: chmod 755 " . $uploadDir);
 }
 
-// NEW FUNCTION: Convert sport name to safe filename
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
 function sanitizeSportName($sportName) {
-    // Convert to lowercase
     $filename = strtolower($sportName);
-    // Replace spaces with hyphens
     $filename = str_replace(' ', '-', $filename);
-    // Remove any characters that aren't alphanumeric or hyphens
     $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    // Remove multiple consecutive hyphens
     $filename = preg_replace('/-+/', '-', $filename);
-    // Trim hyphens from start/end
     $filename = trim($filename, '-');
-    
     return $filename;
+}
+
+function handleImageUpload($file, $uploadDir, $sportName, &$debugInfo) {
+    $debugInfo .= "=== UPLOAD DEBUG START ===\n";
+    $debugInfo .= "Sport Name: $sportName\n";
+    
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        $debugInfo .= "ERROR: No file uploaded\n";
+        return ['error' => 'No file uploaded'];
+    }
+    
+    $allowedTypes = ['image/webp', 'image/svg+xml', 'image/avif'];
+    $allowedExtensions = ['webp', 'svg', 'avif'];
+    
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $debugInfo .= "File extension: $extension\n";
+    
+    if (!in_array($extension, $allowedExtensions)) {
+        return ['error' => 'Invalid file extension. Only WEBP, SVG, AVIF allowed'];
+    }
+    
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if ($extension === 'avif') {
+        $mimeType = 'image/avif';
+        $allowedTypes[] = 'image/avif';
+    }
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
+    }
+    
+    $sanitizedName = sanitizeSportName($sportName);
+    $filename = $sanitizedName . '.' . $extension;
+    $filepath = $uploadDir . $filename;
+    
+    $debugInfo .= "Target filename: $filename\n";
+    
+    if (file_exists($filepath)) {
+        unlink($filepath);
+    }
+    
+    if (in_array($extension, ['webp', 'avif'])) {
+        if (!extension_loaded('gd')) {
+            return ['error' => 'GD extension not available'];
+        }
+        
+        $sourceImage = null;
+        switch ($extension) {
+            case 'webp':
+                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+                break;
+            case 'avif':
+                if (function_exists('imagecreatefromavif')) {
+                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
+                } else {
+                    return ['error' => 'AVIF format not supported'];
+                }
+                break;
+        }
+        
+        if (!$sourceImage) {
+            return ['error' => 'Failed to process image'];
+        }
+        
+        $targetImage = imagecreatetruecolor(64, 64);
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
+        
+        imagecopyresampled(
+            $targetImage, $sourceImage,
+            0, 0, 0, 0,
+            64, 64,
+            imagesx($sourceImage), imagesy($sourceImage)
+        );
+        
+        $saveResult = false;
+        switch ($extension) {
+            case 'webp':
+                $saveResult = imagewebp($targetImage, $filepath, 90);
+                break;
+            case 'avif':
+                if (function_exists('imageavif')) {
+                    $saveResult = imageavif($targetImage, $filepath, 90);
+                }
+                break;
+        }
+        
+        imagedestroy($sourceImage);
+        imagedestroy($targetImage);
+        
+        if (!$saveResult) {
+            return ['error' => 'Failed to save processed image'];
+        }
+    } else {
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            return ['error' => 'Failed to save file'];
+        }
+    }
+    
+    if (file_exists($filepath)) {
+        chmod($filepath, 0644);
+    }
+    
+    $debugInfo .= "=== UPLOAD DEBUG END ===\n";
+    return ['success' => true, 'filename' => $filename];
 }
 
 function sendSlackNotification($sportName) {
@@ -87,179 +194,35 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
-// UPDATED FUNCTION: Now uses meaningful filename based on sport name
-function handleImageUpload($file, $uploadDir, $sportName, &$debugInfo) {
-    global $error;
+// NEW: Calculate status indicator based on SEO + Icon
+function getStatusIndicator($sportName, $pagesSeo, $sportsIcons) {
+    $sportSlug = strtolower(str_replace(' ', '-', $sportName));
     
-    $debugInfo .= "=== UPLOAD DEBUG START ===\n";
-    $debugInfo .= "Upload Dir: $uploadDir\n";
-    $debugInfo .= "Sport Name: $sportName\n";
-    $debugInfo .= "Upload Dir Writable: " . (is_writable($uploadDir) ? 'YES' : 'NO') . "\n";
+    // Check SEO
+    $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
+    $hasTitle = !empty(trim($seoData['title'] ?? ''));
+    $hasDescription = !empty(trim($seoData['description'] ?? ''));
     
-    if (!isset($file['tmp_name']) || empty($file['tmp_name'])) {
-        $debugInfo .= "ERROR: No file tmp_name\n";
-        return ['error' => 'No file uploaded'];
-    }
+    // Check Icon
+    $hasIcon = isset($sportsIcons[$sportName]) && !empty($sportsIcons[$sportName]);
     
-    if (!is_uploaded_file($file['tmp_name'])) {
-        $debugInfo .= "ERROR: Not an uploaded file\n";
-        return ['error' => 'Invalid upload'];
-    }
+    // Status Logic:
+    // 🟢 Green = All 3 present (title + description + icon)
+    // 🟠 Orange = At least 1 present, but not all 3
+    // 🔴 Red = All empty
     
-    $debugInfo .= "File uploaded successfully to temp: {$file['tmp_name']}\n";
-    $debugInfo .= "Original filename: {$file['name']}\n";
-    $debugInfo .= "File size: {$file['size']} bytes\n";
-    $debugInfo .= "Upload error code: {$file['error']}\n";
-    
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        $uploadErrors = [
-            UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
-            UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
-            UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
-            UPLOAD_ERR_NO_FILE => 'No file was uploaded',
-            UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
-            UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-            UPLOAD_ERR_EXTENSION => 'PHP extension stopped upload'
-        ];
-        $errorMsg = $uploadErrors[$file['error']] ?? 'Unknown upload error';
-        $debugInfo .= "ERROR: Upload error - $errorMsg\n";
-        return ['error' => $errorMsg];
-    }
-    
-    $allowedTypes = ['image/webp', 'image/svg+xml', 'image/avif'];
-    $allowedExtensions = ['webp', 'svg', 'avif'];
-    
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    $debugInfo .= "File extension: $extension\n";
-    
-    if (!in_array($extension, $allowedExtensions)) {
-        $debugInfo .= "ERROR: Extension not allowed\n";
-        return ['error' => 'Invalid file extension. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    $debugInfo .= "MIME type detected: $mimeType\n";
-    
-    if ($extension === 'avif') {
-        $mimeType = 'image/avif';
-        $allowedTypes[] = 'image/avif';
-    }
-    
-    if (!in_array($mimeType, $allowedTypes)) {
-        $debugInfo .= "ERROR: MIME type not allowed\n";
-        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    // NEW: Create meaningful filename from sport name
-    $sanitizedName = sanitizeSportName($sportName);
-    $filename = $sanitizedName . '.' . $extension;
-    $filepath = $uploadDir . $filename;
-    
-    $debugInfo .= "Sanitized sport name: $sanitizedName\n";
-    $debugInfo .= "Target filename: $filename\n";
-    $debugInfo .= "Target filepath: $filepath\n";
-    
-    // NEW: Delete existing file if it exists (to replace old icon)
-    if (file_exists($filepath)) {
-        $debugInfo .= "Old file exists, deleting: $filepath\n";
-        unlink($filepath);
-    }
-    
-    if (in_array($extension, ['webp', 'avif'])) {
-        $debugInfo .= "Processing raster image...\n";
-        
-        if (!extension_loaded('gd')) {
-            $debugInfo .= "ERROR: GD extension not available\n";
-            return ['error' => 'GD extension not available'];
-        }
-        
-        $sourceImage = null;
-        switch ($extension) {
-            case 'webp':
-                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-                break;
-            case 'avif':
-                if (function_exists('imagecreatefromavif')) {
-                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
-                } else {
-                    $debugInfo .= "ERROR: AVIF not supported\n";
-                    return ['error' => 'AVIF format not supported'];
-                }
-                break;
-        }
-        
-        if (!$sourceImage) {
-            $debugInfo .= "ERROR: Failed to create image from source\n";
-            return ['error' => 'Failed to process image'];
-        }
-        
-        $debugInfo .= "Source image created successfully\n";
-        
-        $targetImage = imagecreatetruecolor(64, 64);
-        imagealphablending($targetImage, false);
-        imagesavealpha($targetImage, true);
-        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-        imagefill($targetImage, 0, 0, $transparent);
-        
-        imagecopyresampled(
-            $targetImage, $sourceImage,
-            0, 0, 0, 0,
-            64, 64,
-            imagesx($sourceImage), imagesy($sourceImage)
-        );
-        
-        $debugInfo .= "Image resized to 64x64\n";
-        
-        $saveResult = false;
-        switch ($extension) {
-            case 'webp':
-                $saveResult = imagewebp($targetImage, $filepath, 90);
-                break;
-            case 'avif':
-                if (function_exists('imageavif')) {
-                    $saveResult = imageavif($targetImage, $filepath, 90);
-                }
-                break;
-        }
-        
-        imagedestroy($sourceImage);
-        imagedestroy($targetImage);
-        
-        if (!$saveResult) {
-            $debugInfo .= "ERROR: Failed to save processed image\n";
-            return ['error' => 'Failed to save processed image'];
-        }
-        
-        $debugInfo .= "Image saved successfully\n";
-        
+    if ($hasTitle && $hasDescription && $hasIcon) {
+        return '🟢'; // Perfect
+    } elseif (!$hasTitle && !$hasDescription && !$hasIcon) {
+        return '🔴'; // Everything empty
     } else {
-        $debugInfo .= "Processing SVG...\n";
-        
-        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-            $debugInfo .= "ERROR: Failed to move uploaded file\n";
-            return ['error' => 'Failed to save file'];
-        }
-        
-        $debugInfo .= "SVG moved successfully\n";
+        return '🟠'; // Partial
     }
-    
-    if (file_exists($filepath)) {
-        chmod($filepath, 0644);
-        $debugInfo .= "File permissions set to 0644\n";
-        $debugInfo .= "File size on disk: " . filesize($filepath) . " bytes\n";
-        $debugInfo .= "File exists: YES\n";
-    } else {
-        $debugInfo .= "ERROR: File does not exist after save!\n";
-        return ['error' => 'File was not saved'];
-    }
-    
-    $debugInfo .= "=== UPLOAD DEBUG END ===\n";
-    
-    return ['success' => true, 'filename' => $filename];
 }
+
+// ==========================================
+// LOAD WEBSITE DATA
+// ==========================================
 
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
@@ -280,6 +243,10 @@ if (!$website) {
 
 $previewDomain = $website['domain'];
 
+// ==========================================
+// HANDLE FORM SUBMISSIONS
+// ==========================================
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $websiteIndex = null;
     foreach ($websites as $key => $site) {
@@ -296,6 +263,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (!isset($websites[$websiteIndex]['sports_icons'])) {
             $websites[$websiteIndex]['sports_icons'] = [];
+        }
+        
+        if (!isset($websites[$websiteIndex]['pages_seo'])) {
+            $websites[$websiteIndex]['pages_seo'] = [];
+        }
+        
+        if (!isset($websites[$websiteIndex]['pages_seo']['sports'])) {
+            $websites[$websiteIndex]['pages_seo']['sports'] = [];
         }
         
         // ADD NEW SPORT
@@ -329,6 +304,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        // UPDATE SEO
+        if (isset($_POST['update_seo'])) {
+            $sportName = $_POST['sport_name'] ?? '';
+            $sportSlug = strtolower(str_replace(' ', '-', $sportName));
+            
+            $websites[$websiteIndex]['pages_seo']['sports'][$sportSlug] = [
+                'title' => trim($_POST['seo_title'] ?? ''),
+                'description' => trim($_POST['seo_description'] ?? '')
+            ];
+            
+            $success = "✅ SEO updated for '{$sportName}'";
+        }
+        
         // EDIT ICON (UPLOAD NEW ICON)
         if (isset($_POST['edit_icon'])) {
             $sportName = $_POST['sport_name'] ?? '';
@@ -336,12 +324,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($sportName && isset($_FILES['sport_icon_file']) && $_FILES['sport_icon_file']['size'] > 0) {
                 $uploadResult = handleImageUpload($_FILES['sport_icon_file'], $uploadDir, $sportName, $debugInfo);
                 if (isset($uploadResult['success'])) {
-                    // Delete old icon file if it exists and is different
                     if (isset($websites[$websiteIndex]['sports_icons'][$sportName])) {
                         $oldFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportName];
                         if (file_exists($oldFile) && $oldFile !== $uploadDir . $uploadResult['filename']) {
                             unlink($oldFile);
-                            $debugInfo .= "Old icon file deleted: $oldFile\n";
                         }
                     }
                     
@@ -371,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // RENAME SPORT - NEW: Also rename the icon file
+        // RENAME SPORT
         if (isset($_POST['rename_sport'])) {
             $oldName = $_POST['old_sport_name'] ?? '';
             $newName = trim($_POST['new_sport_name'] ?? '');
@@ -382,32 +368,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($index !== false) {
                     if (!in_array($newName, $sports)) {
-                        // Update sport name in array
                         $sports[$index] = $newName;
                         $websites[$websiteIndex]['sports_categories'] = $sports;
                         
-                        // NEW: Rename the icon file if it exists
+                        // Rename icon file if exists
                         if (isset($websites[$websiteIndex]['sports_icons'][$oldName])) {
                             $oldIconFile = $websites[$websiteIndex]['sports_icons'][$oldName];
                             $oldIconPath = $uploadDir . $oldIconFile;
                             
-                            // Get extension from old file
                             $extension = pathinfo($oldIconFile, PATHINFO_EXTENSION);
-                            
-                            // Create new filename based on new sport name
                             $newIconFilename = sanitizeSportName($newName) . '.' . $extension;
                             $newIconPath = $uploadDir . $newIconFilename;
                             
-                            // Rename file on disk
                             if (file_exists($oldIconPath)) {
-                                if (rename($oldIconPath, $newIconPath)) {
-                                    $debugInfo .= "Icon file renamed: $oldIconPath → $newIconPath\n";
-                                }
+                                rename($oldIconPath, $newIconPath);
                             }
                             
-                            // Update icon reference in config
                             $websites[$websiteIndex]['sports_icons'][$newName] = $newIconFilename;
                             unset($websites[$websiteIndex]['sports_icons'][$oldName]);
+                        }
+                        
+                        // Rename SEO key if exists
+                        $oldSlug = strtolower(str_replace(' ', '-', $oldName));
+                        $newSlug = strtolower(str_replace(' ', '-', $newName));
+                        
+                        if (isset($websites[$websiteIndex]['pages_seo']['sports'][$oldSlug])) {
+                            $websites[$websiteIndex]['pages_seo']['sports'][$newSlug] = $websites[$websiteIndex]['pages_seo']['sports'][$oldSlug];
+                            unset($websites[$websiteIndex]['pages_seo']['sports'][$oldSlug]);
                         }
                         
                         $success = "✅ Sport renamed: '{$oldName}' → '{$newName}'";
@@ -426,6 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['delete_sport'])) {
             $sportToDelete = $_POST['sport_name'] ?? '';
             
+            // Delete icon file
             if (isset($websites[$websiteIndex]['sports_icons'][$sportToDelete])) {
                 $iconFile = $uploadDir . $websites[$websiteIndex]['sports_icons'][$sportToDelete];
                 if (file_exists($iconFile)) {
@@ -434,11 +422,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 unset($websites[$websiteIndex]['sports_icons'][$sportToDelete]);
             }
             
+            // Delete from categories
             $sports = $websites[$websiteIndex]['sports_categories'];
             $sports = array_filter($sports, function($sport) use ($sportToDelete) {
                 return $sport !== $sportToDelete;
             });
             $websites[$websiteIndex]['sports_categories'] = array_values($sports);
+            
+            // Delete SEO data
+            $sportSlug = strtolower(str_replace(' ', '-', $sportToDelete));
+            if (isset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug])) {
+                unset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug]);
+            }
             
             $success = "✅ Sport category '{$sportToDelete}' deleted";
         }
@@ -481,15 +476,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $sports = $website['sports_categories'] ?? [];
 $sportsIcons = $website['sports_icons'] ?? [];
+$pagesSeo = $website['pages_seo'] ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Sports - <?php echo htmlspecialchars($website['site_name']); ?></title>
+    <title>Manage Pages - <?php echo htmlspecialchars($website['site_name']); ?></title>
     <link rel="stylesheet" href="cms-style.css">
-    <link rel="stylesheet" href="css/website-sports.css">
+    <link rel="stylesheet" href="css/website-pages.css">
 </head>
 <body data-preview-domain="<?php echo htmlspecialchars($previewDomain); ?>">
     <div class="cms-layout">
@@ -514,11 +510,8 @@ $sportsIcons = $website['sports_icons'] ?? [];
         
         <main class="cms-main">
             <header class="cms-header">
-                <h1>Manage Sports: <?php echo htmlspecialchars($website['site_name']); ?></h1>
-                <div>
-                    <a href="website-seo.php?id=<?php echo $websiteId; ?>" class="btn">SEO Settings →</a>
-                    <a href="dashboard.php" class="btn">Dashboard</a>
-                </div>
+                <h1>Manage Pages: <?php echo htmlspecialchars($website['site_name']); ?></h1>
+                <a href="dashboard.php" class="btn">← Back to Dashboard</a>
             </header>
             
             <div class="cms-content">
@@ -530,8 +523,9 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
                 
+                <!-- ADD NEW SPORT SECTION -->
                 <div class="add-sport-card">
-                    <h3 style="margin-bottom: 20px; color: #2e7d32; font-size: 20px;">➕ Add New Sport Category</h3>
+                    <h3>➕ Add New Sport Category</h3>
                     <form method="POST" enctype="multipart/form-data">
                         <div class="add-sport-form">
                             <div class="form-group" style="margin-bottom: 0;">
@@ -556,80 +550,129 @@ $sportsIcons = $website['sports_icons'] ?? [];
                     </form>
                 </div>
                 
+                <!-- SPORTS LIST WITH ACCORDIONS -->
                 <div class="content-section">
                     <div class="section-header">
-                        <h2>Current Sports Categories (<?php echo count($sports); ?>)</h2>
-                        <p style="color: #7f8c8d; font-size: 14px; margin-top: 5px;">💡 Drag and drop to reorder (affects front-end menu)</p>
+                        <h2>Sport Pages (<?php echo count($sports); ?>)</h2>
                     </div>
                     
-                    <div class="sports-grid" id="sportsGrid">
+                    <div class="sports-count-info">
+                        <span>💡 Drag accordions to reorder (affects left menu on website)</span>
+                    </div>
+                    
+                    <div class="pages-accordion" id="pagesAccordions">
                         <?php foreach ($sports as $sport): 
+                            $sportSlug = strtolower(str_replace(' ', '-', $sport));
                             $iconFile = $sportsIcons[$sport] ?? '';
                             $hasIcon = !empty($iconFile);
                             $iconUrl = 'https://www.' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($iconFile);
+                            
+                            $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
+                            $seoTitle = $seoData['title'] ?? '';
+                            $seoDescription = $seoData['description'] ?? '';
+                            
+                            $status = getStatusIndicator($sport, $pagesSeo, $sportsIcons);
                         ?>
-                            <div class="sport-card" data-sport-name="<?php echo htmlspecialchars($sport); ?>" draggable="true">
-                                <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
-                                <div class="sport-card-header">
-                                    <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
-                                        <?php if ($hasIcon): ?>
-                                            <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" 
-                                                 alt="<?php echo htmlspecialchars($sport); ?>" 
-                                                 onerror="this.parentElement.classList.add('no-icon'); this.parentElement.innerHTML='?';">
-                                        <?php else: ?>
-                                            ?
-                                        <?php endif; ?>
+                            <details data-sport-name="<?php echo htmlspecialchars($sport); ?>">
+                                <summary>
+                                    <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
+                                    <span class="status-indicator"><?php echo $status; ?></span>
+                                    <span class="accordion-title"><?php echo htmlspecialchars($sport); ?></span>
+                                </summary>
+                                
+                                <div class="accordion-content">
+                                    <!-- SEO SECTION -->
+                                    <div class="seo-section">
+                                        <h4>🔍 SEO Settings</h4>
+                                        <form method="POST">
+                                            <input type="hidden" name="update_seo" value="1">
+                                            <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
+                                            
+                                            <div class="form-group">
+                                                <label for="seo_title_<?php echo $sportSlug; ?>">SEO Title</label>
+                                                <input type="text" id="seo_title_<?php echo $sportSlug; ?>" name="seo_title" value="<?php echo htmlspecialchars($seoTitle); ?>" placeholder="Live <?php echo htmlspecialchars($sport); ?> - <?php echo htmlspecialchars($website['site_name']); ?>">
+                                                <small>Recommended: 50-60 characters</small>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label for="seo_description_<?php echo $sportSlug; ?>">SEO Description</label>
+                                                <textarea id="seo_description_<?php echo $sportSlug; ?>" name="seo_description" rows="3" placeholder="Watch <?php echo htmlspecialchars($sport); ?> live streams..."><?php echo htmlspecialchars($seoDescription); ?></textarea>
+                                                <small>Recommended: 150-160 characters</small>
+                                            </div>
+                                            
+                                            <button type="submit" class="btn btn-primary">Save SEO</button>
+                                        </form>
                                     </div>
-                                    <div class="sport-card-info">
-                                        <div class="sport-card-name"><?php echo htmlspecialchars($sport); ?></div>
-                                        <div class="sport-card-meta">
-                                            <?php if ($hasIcon): ?>
-                                                <span>✅ Has icon</span>
-                                                <span>•</span>
-                                                <span><?php echo htmlspecialchars($iconFile); ?></span>
-                                            <?php else: ?>
-                                                <span style="color: #e74c3c;">⚠️ No icon</span>
-                                            <?php endif; ?>
+                                    
+                                    <!-- SPORT MANAGEMENT SECTION -->
+                                    <div class="sport-management-section">
+                                        <h4>⚽ Sport Management</h4>
+                                        
+                                        <!-- Sport Card (from original sports page) -->
+                                        <div class="sport-card">
+                                            <div class="sport-card-header">
+                                                <div class="sport-icon-display <?php echo $hasIcon ? '' : 'no-icon'; ?>">
+                                                    <?php if ($hasIcon): ?>
+                                                        <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" 
+                                                             alt="<?php echo htmlspecialchars($sport); ?>" 
+                                                             onerror="this.parentElement.classList.add('no-icon'); this.parentElement.innerHTML='?';">
+                                                    <?php else: ?>
+                                                        ?
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="sport-card-info">
+                                                    <div class="sport-card-name"><?php echo htmlspecialchars($sport); ?></div>
+                                                    <div class="sport-card-meta">
+                                                        <?php if ($hasIcon): ?>
+                                                            <span>✅ Has icon</span>
+                                                            <span>•</span>
+                                                            <span><?php echo htmlspecialchars($iconFile); ?></span>
+                                                        <?php else: ?>
+                                                            <span style="color: #e74c3c;">⚠️ No icon</span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="sport-card-actions">
+                                                <button type="button" class="btn-edit-icon" onclick="openIconModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($iconFile, ENT_QUOTES); ?>')">
+                                                    🖼️ <?php echo $hasIcon ? 'Change' : 'Add'; ?> Icon
+                                                </button>
+                                                
+                                                <?php if ($hasIcon): ?>
+                                                    <form method="POST" style="margin: 0;" onsubmit="return confirm('Delete icon for <?php echo htmlspecialchars($sport); ?>?');">
+                                                        <input type="hidden" name="delete_icon" value="1">
+                                                        <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
+                                                        <button type="submit" class="btn-delete-icon">
+                                                            🗑️ Delete Icon
+                                                        </button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <div></div>
+                                                <?php endif; ?>
+                                                
+                                                <button type="button" class="btn-rename" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
+                                                    ✏️ Rename
+                                                </button>
+                                                
+                                                <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>? This will also delete SEO data.');" style="margin: 0;">
+                                                    <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
+                                                    <button type="submit" name="delete_sport" class="btn-delete">
+                                                        🗑️ Delete Sport
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <div class="sport-card-actions">
-                                    <button type="button" class="btn-edit-icon" onclick="openIconModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>', '<?php echo htmlspecialchars($iconFile, ENT_QUOTES); ?>')">
-                                        🖼️ <?php echo $hasIcon ? 'Change' : 'Add'; ?> Icon
-                                    </button>
-                                    
-                                    <?php if ($hasIcon): ?>
-                                        <form method="POST" style="margin: 0;" onsubmit="return confirm('Delete icon for <?php echo htmlspecialchars($sport); ?>?');">
-                                            <input type="hidden" name="delete_icon" value="1">
-                                            <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
-                                            <button type="submit" class="btn-delete-icon">
-                                                🗑️ Delete Icon
-                                            </button>
-                                        </form>
-                                    <?php else: ?>
-                                        <div></div>
-                                    <?php endif; ?>
-                                    
-                                    <button type="button" class="btn-rename" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
-                                        ✏️ Rename
-                                    </button>
-                                    
-                                    <form method="POST" onsubmit="return confirm('Delete <?php echo htmlspecialchars($sport); ?>?');" style="margin: 0;">
-                                        <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
-                                        <button type="submit" name="delete_sport" class="btn-delete">
-                                            🗑️ Delete Sport
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
+                            </details>
                         <?php endforeach; ?>
                     </div>
                     
                     <?php if (empty($sports)): ?>
                         <div style="text-align: center; padding: 60px; color: #999;">
                             <div style="font-size: 80px; margin-bottom: 20px;">⚽</div>
-                            <h3>No sports categories yet</h3>
+                            <h3>No sport categories yet</h3>
                             <p>Add your first sport category above!</p>
                         </div>
                     <?php endif; ?>
@@ -641,7 +684,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <!-- ICON UPLOAD MODAL -->
     <div class="modal" id="iconModal">
         <div class="modal-content">
-            <h3>Upload/Change Sport Icon</h3>
+            <h3 id="iconModalTitle">Upload/Change Sport Icon</h3>
             <form method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="edit_icon" value="1">
                 <input type="hidden" name="sport_name" id="iconSportName">
@@ -675,7 +718,7 @@ $sportsIcons = $website['sports_icons'] ?? [];
     <!-- RENAME MODAL -->
     <div class="modal" id="renameModal">
         <div class="modal-content">
-            <h3>Rename Sport Category</h3>
+            <h3 id="renameModalTitle">Rename Sport Category</h3>
             <form method="POST">
                 <input type="hidden" name="rename_sport" value="1">
                 <input type="hidden" name="old_sport_name" id="oldSportName">
@@ -691,6 +734,19 @@ $sportsIcons = $website['sports_icons'] ?? [];
         </div>
     </div>
     
-    <script src="js/website-sports.js"></script>
+    <!-- SAVE ORDER CONFIRMATION MODAL -->
+    <div class="modal confirmation-modal" id="saveOrderModal">
+        <div class="modal-content">
+            <div class="modal-icon">💾</div>
+            <h3>Save Changes?</h3>
+            <p style="color: #666; margin: 20px 0;">Do you want to save the new sport order?</p>
+            <div class="modal-buttons">
+                <button type="button" class="btn btn-outline" onclick="cancelOrderChange()">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="confirmSaveOrder()">Yes, Save Order</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/website-pages.js"></script>
 </body>
 </html>

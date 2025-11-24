@@ -1,0 +1,522 @@
+/* ==========================================
+   WEBSITE PAGES - Combined Sports + SEO Management
+   ========================================== */
+
+/* ==========================================
+   ADD NEW SPORT SECTION
+   ========================================== */
+.add-sport-card {
+	background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+	padding: 30px;
+	border-radius: 12px;
+	margin-bottom: 30px;
+	border: 2px solid #81c784;
+	box-shadow: 0 4px 12px rgba(129, 199, 132, 0.2);
+}
+
+.add-sport-card h3 {
+	margin-bottom: 20px;
+	color: #2e7d32;
+	font-size: 20px;
+}
+
+.add-sport-form {
+	display: grid;
+	grid-template-columns: 2fr 2fr 1fr;
+	gap: 15px;
+	align-items: end;
+}
+
+@media (max-width: 768px) {
+	.add-sport-form {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* ==========================================
+   DRAG & DROP ACCORDIONS
+   ========================================== */
+.pages-accordion {
+	margin-bottom: 15px;
+}
+
+.pages-accordion details {
+	background: #fff;
+	border: 2px solid #e9ecef;
+	border-radius: 12px;
+	overflow: hidden;
+	margin-bottom: 15px;
+	transition: all 0.3s ease;
+	position: relative;
+}
+
+.pages-accordion details.dragging {
+	opacity: 0.5;
+	transform: scale(0.98);
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.pages-accordion details.drag-over {
+	border: 2px dashed #3498db;
+	background: rgba(52, 152, 219, 0.05);
+}
+
+/* Drag Handle */
+.drag-handle {
+	position: absolute;
+	left: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	cursor: move;
+	font-size: 20px;
+	color: #95a5a6;
+	padding: 5px;
+	user-select: none;
+	transition: color 0.3s;
+	z-index: 10;
+}
+
+.drag-handle:hover {
+	color: #3498db;
+}
+
+.pages-accordion summary {
+	padding: 20px 20px 20px 50px; /* Extra left padding for drag handle */
+	cursor: pointer;
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-weight: 600;
+	color: #2c3e50;
+	font-size: 16px;
+	background: #f8f9fa;
+	transition: background 0.3s;
+	position: relative;
+}
+
+.pages-accordion summary::-webkit-details-marker {
+	display: none;
+}
+
+.pages-accordion summary:hover {
+	background: #e9ecef;
+}
+
+.pages-accordion details[open] summary {
+	background: #e9ecef;
+	border-bottom: 1px solid #dee2e6;
+}
+
+/* Status Indicator */
+.status-indicator {
+	font-size: 16px;
+	margin-right: 10px;
+	flex-shrink: 0;
+}
+
+/* Accordion Title */
+.accordion-title {
+	flex: 1;
+	font-size: 18px;
+	font-weight: 600;
+}
+
+/* Sport Count Info */
+.sports-count-info {
+	background: #e8f5e9;
+	padding: 15px;
+	border-radius: 8px;
+	margin-bottom: 20px;
+	color: #2e7d32;
+	font-weight: 600;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+/* ==========================================
+   ACCORDION CONTENT - TWO SECTIONS
+   ========================================== */
+.accordion-content {
+	padding: 25px;
+	background: #fff;
+}
+
+/* SEO Section */
+.seo-section {
+	margin-bottom: 30px;
+	padding-bottom: 30px;
+	border-bottom: 2px solid #e9ecef;
+}
+
+.seo-section h4 {
+	color: #2c3e50;
+	margin-bottom: 20px;
+	font-size: 18px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* Sport Management Section */
+.sport-management-section {
+	margin-top: 30px;
+}
+
+.sport-management-section h4 {
+	color: #2c3e50;
+	margin-bottom: 20px;
+	font-size: 18px;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+/* ==========================================
+   SPORT CARD (from original sports page)
+   ========================================== */
+.sport-card {
+	background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+	padding: 20px;
+	border-radius: 12px;
+	border: 2px solid #e9ecef;
+	display: flex;
+	flex-direction: column;
+	gap: 15px;
+	transition: all 0.3s;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+	margin-top: 15px;
+}
+
+.sport-card:hover {
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+	transform: translateY(-3px);
+}
+
+.sport-card-header {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	padding-bottom: 15px;
+	border-bottom: 2px solid #e9ecef;
+}
+
+.sport-icon-display {
+	width: 64px;
+	height: 64px;
+	min-width: 64px;
+	min-height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 12px;
+	flex-shrink: 0;
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.sport-icon-display img {
+	width: 48px;
+	height: 48px;
+	object-fit: contain;
+}
+
+.sport-icon-display.no-icon {
+	font-size: 36px;
+	color: white;
+}
+
+.sport-card-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.sport-card-name {
+	font-weight: 700;
+	font-size: 18px;
+	color: #2c3e50;
+	margin-bottom: 5px;
+	word-wrap: break-word;
+}
+
+.sport-card-meta {
+	font-size: 13px;
+	color: #7f8c8d;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.sport-card-actions {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 10px;
+	width: 100%;
+}
+
+.sport-card-actions button,
+.sport-card-actions form {
+	margin: 0;
+}
+
+.sport-card-actions form button {
+	width: 100%;
+}
+
+.sport-card-actions button,
+.sport-card-actions .btn-delete {
+	padding: 10px;
+	border-radius: 8px;
+	font-size: 13px;
+	font-weight: 600;
+	border: none;
+	cursor: pointer;
+	transition: all 0.3s;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	width: 100%;
+}
+
+.btn-edit-icon {
+	background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+	color: white;
+}
+
+.btn-edit-icon:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.btn-delete-icon {
+	background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+	color: white;
+}
+
+.btn-delete-icon:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(149, 165, 166, 0.4);
+}
+
+.btn-rename {
+	background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+	color: white;
+}
+
+.btn-rename:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+.btn-delete {
+	background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+	color: white;
+	grid-column: 1 / -1;
+}
+
+.btn-delete:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+}
+
+/* Make sure forms inside grid take full width */
+.sport-card-actions form {
+	display: contents;
+}
+
+@media (max-width: 768px) {
+	.sport-card-actions {
+		grid-template-columns: 1fr;
+	}
+
+	.btn-delete {
+		grid-column: 1;
+	}
+}
+
+/* ==========================================
+   FILE UPLOAD STYLES
+   ========================================== */
+.file-upload-wrapper {
+	position: relative;
+}
+
+.file-upload-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 12px 20px;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	border-radius: 8px;
+	cursor: pointer;
+	font-weight: 600;
+	transition: all 0.3s;
+	border: 2px solid transparent;
+}
+
+.file-upload-label:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.file-upload-input {
+	display: none;
+}
+
+.file-name-display {
+	font-size: 12px;
+	color: #666;
+	margin-top: 5px;
+	text-align: center;
+}
+
+/* ==========================================
+   MODALS
+   ========================================== */
+.modal {
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 9999;
+	align-items: center;
+	justify-content: center;
+}
+
+.modal.active {
+	display: flex;
+}
+
+.modal-content {
+	background: white;
+	padding: 30px;
+	border-radius: 12px;
+	max-width: 600px;
+	width: 90%;
+	max-height: 90vh;
+	overflow-y: auto;
+}
+
+.modal-content h3 {
+	margin-bottom: 20px;
+	color: #2c3e50;
+	font-size: 22px;
+}
+
+/* Icon Upload Preview in Modal */
+.upload-preview-area {
+	margin: 20px 0;
+	padding: 20px;
+	background: #f8f9fa;
+	border-radius: 12px;
+	text-align: center;
+}
+
+.preview-icon-large {
+	width: 128px;
+	height: 128px;
+	margin: 0 auto 15px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 16px;
+	box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+}
+
+.preview-icon-large img {
+	max-width: 96px;
+	max-height: 96px;
+	object-fit: contain;
+}
+
+.preview-icon-large.no-icon {
+	font-size: 64px;
+	color: white;
+}
+
+/* Confirmation Modal (for drag-drop save) */
+.confirmation-modal .modal-content {
+	max-width: 450px;
+	text-align: center;
+}
+
+.confirmation-modal .modal-icon {
+	font-size: 64px;
+	margin-bottom: 20px;
+}
+
+.confirmation-modal .modal-buttons {
+	display: flex;
+	gap: 15px;
+	justify-content: center;
+	margin-top: 30px;
+}
+
+/* ==========================================
+   NOTIFICATIONS
+   ========================================== */
+.drag-notification {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	padding: 15px 25px;
+	background: #27ae60;
+	color: white;
+	border-radius: 8px;
+	font-weight: 600;
+	z-index: 10000;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	animation: slideIn 0.3s ease;
+}
+
+.drag-notification.error {
+	background: #e74c3c;
+}
+
+@keyframes slideIn {
+	from {
+		transform: translateX(400px);
+		opacity: 0;
+	}
+	to {
+		transform: translateX(0);
+		opacity: 1;
+	}
+}
+
+@keyframes slideOut {
+	from {
+		transform: translateX(0);
+		opacity: 1;
+	}
+	to {
+		transform: translateX(400px);
+		opacity: 0;
+	}
+}
+
+/* ==========================================
+   DEBUG INFO (Optional - for development)
+   ========================================== */
+.debug-info {
+	background: #f0f0f0;
+	padding: 15px;
+	border-radius: 8px;
+	margin-top: 15px;
+	font-size: 11px;
+	font-family: monospace;
+	color: #333;
+	white-space: pre-wrap;
+	word-break: break-all;
+	max-height: 300px;
+	overflow-y: auto;
+}
