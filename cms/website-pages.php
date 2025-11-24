@@ -194,7 +194,23 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
-// NEW: Calculate status indicator based on SEO + Icon
+// NEW: Calculate status indicator for Home page
+function getHomeStatusIndicator($pagesSeo, $homeIcon) {
+    $seoData = $pagesSeo['home'] ?? [];
+    $hasTitle = !empty(trim($seoData['title'] ?? ''));
+    $hasDescription = !empty(trim($seoData['description'] ?? ''));
+    $hasIcon = !empty($homeIcon);
+    
+    if ($hasTitle && $hasDescription && $hasIcon) {
+        return '🟢'; // Perfect
+    } elseif (!$hasTitle && !$hasDescription && !$hasIcon) {
+        return '🔴'; // Everything empty
+    } else {
+        return '🟠'; // Partial
+    }
+}
+
+// Calculate status indicator based on SEO + Icon
 function getStatusIndicator($sportName, $pagesSeo, $sportsIcons) {
     $sportSlug = strtolower(str_replace(' ', '-', $sportName));
     
@@ -271,6 +287,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if (!isset($websites[$websiteIndex]['pages_seo']['sports'])) {
             $websites[$websiteIndex]['pages_seo']['sports'] = [];
+        }
+        
+        if (!isset($websites[$websiteIndex]['pages_seo']['home'])) {
+            $websites[$websiteIndex]['pages_seo']['home'] = [
+                'title' => '',
+                'description' => ''
+            ];
+        }
+        
+        if (!isset($websites[$websiteIndex]['home_icon'])) {
+            $websites[$websiteIndex]['home_icon'] = '';
+        }
+        
+        // UPDATE HOME SEO
+        if (isset($_POST['update_home_seo'])) {
+            $websites[$websiteIndex]['pages_seo']['home'] = [
+                'title' => trim($_POST['home_seo_title'] ?? ''),
+                'description' => trim($_POST['home_seo_description'] ?? '')
+            ];
+            
+            $success = "✅ Home page SEO updated";
+        }
+        
+        // UPLOAD HOME ICON
+        if (isset($_POST['upload_home_icon'])) {
+            if (isset($_FILES['home_icon_file']) && $_FILES['home_icon_file']['size'] > 0) {
+                $uploadResult = handleImageUpload($_FILES['home_icon_file'], $uploadDir, 'home', $debugInfo);
+                if (isset($uploadResult['success'])) {
+                    if (!empty($websites[$websiteIndex]['home_icon'])) {
+                        $oldFile = $uploadDir . $websites[$websiteIndex]['home_icon'];
+                        if (file_exists($oldFile) && $oldFile !== $uploadDir . $uploadResult['filename']) {
+                            unlink($oldFile);
+                        }
+                    }
+                    
+                    $websites[$websiteIndex]['home_icon'] = $uploadResult['filename'];
+                    $success = "✅ Home icon uploaded: {$uploadResult['filename']}";
+                } else {
+                    $error = "❌ Upload failed: " . $uploadResult['error'];
+                }
+            } else {
+                $error = "❌ Please select an icon file to upload";
+            }
+        }
+        
+        // DELETE HOME ICON
+        if (isset($_POST['delete_home_icon'])) {
+            if (!empty($websites[$websiteIndex]['home_icon'])) {
+                $iconFile = $uploadDir . $websites[$websiteIndex]['home_icon'];
+                if (file_exists($iconFile)) {
+                    unlink($iconFile);
+                }
+                $websites[$websiteIndex]['home_icon'] = '';
+                $success = "✅ Home icon deleted";
+            } else {
+                $error = "❌ No home icon found";
+            }
         }
         
         // ADD NEW SPORT
@@ -477,6 +550,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $sports = $website['sports_categories'] ?? [];
 $sportsIcons = $website['sports_icons'] ?? [];
 $pagesSeo = $website['pages_seo'] ?? [];
+$homeIcon = $website['home_icon'] ?? '';
+$homeStatus = getHomeStatusIndicator($pagesSeo, $homeIcon);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -522,6 +597,108 @@ $pagesSeo = $website['pages_seo'] ?? [];
                 <?php if ($success): ?>
                     <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                 <?php endif; ?>
+                
+                <!-- HOME PAGE SECTION (NEW) -->
+                <div class="content-section home-page-section">
+                    <div class="pages-accordion">
+                        <details class="home-page-card" data-page-type="home">
+                            <summary>
+                                <span class="status-indicator"><?php echo $homeStatus; ?></span>
+                                <span class="accordion-title">
+                                    <span class="home-badge">HOME</span>
+                                    Home Page
+                                </span>
+                            </summary>
+                            
+                            <div class="accordion-content">
+                                <!-- SEO SECTION -->
+                                <div class="seo-section">
+                                    <h4>🔍 SEO Settings</h4>
+                                    <form method="POST">
+                                        <input type="hidden" name="update_home_seo" value="1">
+                                        
+                                        <div class="form-group">
+                                            <label for="home_seo_title">SEO Title</label>
+                                            <input type="text" id="home_seo_title" name="home_seo_title" value="<?php echo htmlspecialchars($pagesSeo['home']['title'] ?? ''); ?>" placeholder="<?php echo htmlspecialchars($website['site_name']); ?> - Live Sports Streaming">
+                                            <small>Recommended: 50-60 characters</small>
+                                        </div>
+                                        
+                                        <div class="form-group">
+                                            <label for="home_seo_description">SEO Description</label>
+                                            <textarea id="home_seo_description" name="home_seo_description" rows="3" placeholder="Watch live sports streams..."><?php echo htmlspecialchars($pagesSeo['home']['description'] ?? ''); ?></textarea>
+                                            <small>Recommended: 150-160 characters</small>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-primary">Save SEO</button>
+                                    </form>
+                                </div>
+                                
+                                <!-- HOME ICON MANAGEMENT -->
+                                <div class="sport-management-section">
+                                    <h4>🏠 Home Icon Management</h4>
+                                    
+                                    <div class="sport-card">
+                                        <div class="sport-card-header">
+                                            <div class="sport-icon-display <?php echo !empty($homeIcon) ? '' : 'no-icon'; ?>">
+                                                <?php if (!empty($homeIcon)): 
+                                                    $iconUrl = 'https://www.' . htmlspecialchars($previewDomain) . '/images/sports/' . htmlspecialchars($homeIcon);
+                                                ?>
+                                                    <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" 
+                                                         alt="Home Icon" 
+                                                         onerror="this.parentElement.classList.add('no-icon'); this.parentElement.innerHTML='🏠';">
+                                                <?php else: ?>
+                                                    🏠
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="sport-card-info">
+                                                <div class="sport-card-name">Home Page Icon</div>
+                                                <div class="sport-card-meta">
+                                                    <?php if (!empty($homeIcon)): ?>
+                                                        <span>✅ Has icon</span>
+                                                        <span>•</span>
+                                                        <span><?php echo htmlspecialchars($homeIcon); ?></span>
+                                                    <?php else: ?>
+                                                        <span style="color: #e74c3c;">⚠️ No icon (using default 🏠)</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="sport-card-actions">
+                                            <form method="POST" enctype="multipart/form-data" style="grid-column: 1 / -1;">
+                                                <input type="hidden" name="upload_home_icon" value="1">
+                                                <div class="form-group" style="margin-bottom: 15px;">
+                                                    <label>Upload/Change Icon</label>
+                                                    <div class="file-upload-wrapper">
+                                                        <label for="home_icon_file" class="file-upload-label">
+                                                            <span>📤</span>
+                                                            <span><?php echo !empty($homeIcon) ? 'Change Icon' : 'Upload Icon'; ?></span>
+                                                        </label>
+                                                        <input type="file" id="home_icon_file" name="home_icon_file" class="file-upload-input" accept=".webp,.svg,.avif" required>
+                                                        <div class="file-name-display" id="homeIconFileName">No file chosen</div>
+                                                    </div>
+                                                    <small>WEBP, SVG, AVIF • Auto-resize to 64x64px</small>
+                                                </div>
+                                                <button type="submit" class="btn btn-primary" style="width: 100%;">
+                                                    <?php echo !empty($homeIcon) ? '🖼️ Update Icon' : '📤 Upload Icon'; ?>
+                                                </button>
+                                            </form>
+                                            
+                                            <?php if (!empty($homeIcon)): ?>
+                                                <form method="POST" onsubmit="return confirm('Delete home icon?');" style="grid-column: 1 / -1; margin-top: 10px;">
+                                                    <input type="hidden" name="delete_home_icon" value="1">
+                                                    <button type="submit" class="btn-delete">
+                                                        🗑️ Delete Icon
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+                </div>
                 
                 <!-- ADD NEW SPORT SECTION -->
                 <div class="add-sport-card">
@@ -748,5 +925,12 @@ $pagesSeo = $website['pages_seo'] ?? [];
     </div>
     
     <script src="js/website-pages.js"></script>
+    <script>
+        // Home icon file upload preview
+        document.getElementById('home_icon_file').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'No file chosen';
+            document.getElementById('homeIconFileName').textContent = fileName;
+        });
+    </script>
 </body>
 </html>

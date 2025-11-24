@@ -238,6 +238,11 @@ function initDragAndDrop() {
 	}
 
 	accordions.forEach((details, index) => {
+		// IMPORTANT: Skip Home page - it should NOT be draggable
+		if (details.getAttribute('data-page-type') === 'home') {
+			return;
+		}
+
 		details.setAttribute('draggable', 'true');
 
 		details.addEventListener('dragstart', function (e) {
