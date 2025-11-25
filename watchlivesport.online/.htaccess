@@ -1,7 +1,0 @@
- <IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{REQUEST_URI} ^(.*)$
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteRule ^([^/]*)$ /index.php?sport=$1 [L]
-    RewriteRule ^([^/]*)/([^/]*)/([^/]*)/([^/]*)/([^/]*)/([^/]*)/ /monitor.php?c=$1&sport=$2&league=$3&date=$4&match=$5&stream=$6 [L]
-</IfModule>

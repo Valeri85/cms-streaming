@@ -18,265 +18,256 @@ function restoreScrollPosition() {
 	}
 }
 
+// ==========================================
+// INITIALIZATION
+// ==========================================
+
 window.addEventListener('DOMContentLoaded', function () {
+	// Restore scroll position after page load
 	restoreScrollPosition();
 
-	// Handle "Add New Sport" form at top
-	const addSportForm = document.querySelector('form[method="POST"][enctype="multipart/form-data"]');
-	if (addSportForm && addSportForm.querySelector('button[name="add_sport"]')) {
-		addSportForm.addEventListener('submit', function (e) {
-			saveScrollPosition();
-		});
-	}
+	// Attach scroll position saving to ALL forms
+	attachScrollSaveToForms();
+
+	// Initialize file input listeners
+	initFileInputListeners();
+
+	// Initialize delete confirmation input
+	initDeleteConfirmation();
+
+	// Initialize drag and drop
+	setTimeout(initDragAndDrop, 100);
+
+	// Initialize modal close on outside click
+	initModalCloseHandlers();
 });
 
-// ==========================================
-// FILE UPLOAD PREVIEWS
-// ==========================================
-
-// Preview for NEW sport icon
-document.addEventListener('DOMContentLoaded', function () {
-	const newSportIcon = document.getElementById('new_sport_icon');
-	if (newSportIcon) {
-		newSportIcon.addEventListener('change', function (e) {
-			const fileName = e.target.files[0]?.name || 'No file chosen';
-			const fileDisplay = document.getElementById('newSportFileName');
-			if (fileDisplay) {
-				fileDisplay.textContent = fileName;
-			}
-		});
-	}
-
-	// Preview for EDIT sport icon (in modal)
-	const sportIconFile = document.getElementById('sportIconFile');
-	if (sportIconFile) {
-		sportIconFile.addEventListener('change', function (e) {
-			const fileName = e.target.files[0]?.name || 'No file chosen';
-			const fileDisplay = document.getElementById('editSportFileName');
-			if (fileDisplay) {
-				fileDisplay.textContent = fileName;
-			}
-
-			if (e.target.files[0]) {
-				const reader = new FileReader();
-				reader.onload = function (event) {
-					const preview = document.getElementById('iconPreviewContainer');
-					if (preview) {
-						preview.innerHTML = '<img src="' + event.target.result + '" alt="Preview">';
-						preview.classList.remove('no-icon');
-					}
-				};
-				reader.readAsDataURL(e.target.files[0]);
-			}
-		});
-	}
-});
-
-// ==========================================
-// ICON UPLOAD MODAL
-// Shows current sport name in title
-// ==========================================
-
-function openIconModal(sportName, currentIcon) {
-	const iconModal = document.getElementById('iconModal');
-	const iconSportName = document.getElementById('iconSportName');
-	const modalTitle = document.getElementById('iconModalTitle');
-	const preview = document.getElementById('iconPreviewContainer');
-	const iconName = document.getElementById('currentIconName');
-	const fileDisplay = document.getElementById('editSportFileName');
-	const sportIconFile = document.getElementById('sportIconFile');
-
-	if (!iconModal || !iconSportName) return;
-
-	// Set sport name in hidden field
-	iconSportName.value = sportName;
-
-	// UPDATE: Set sport name in modal title
-	if (modalTitle) {
-		modalTitle.textContent = 'Upload/Change Icon - ' + sportName;
-	}
-
-	// Show current icon preview
-	if (currentIcon && preview && iconName) {
-		const iconUrl = 'https://www.' + previewDomain + '/images/sports/' + currentIcon + '?v=' + Date.now();
-		preview.innerHTML =
-			'<img src="' +
-			iconUrl +
-			'" alt="' +
-			sportName +
-			"\" onerror=\"this.parentElement.innerHTML='?'; this.parentElement.classList.add('no-icon');\">";
-		preview.classList.remove('no-icon');
-		iconName.textContent = 'Current: ' + currentIcon;
-	} else if (preview && iconName) {
-		preview.innerHTML = '?';
-		preview.classList.add('no-icon');
-		iconName.textContent = 'No icon';
-	}
-
-	// Reset file input
-	if (fileDisplay) fileDisplay.textContent = 'No file chosen';
-	if (sportIconFile) sportIconFile.value = '';
-
-	iconModal.classList.add('active');
-}
-
-function closeIconModal() {
-	const iconModal = document.getElementById('iconModal');
-	if (iconModal) {
-		iconModal.classList.remove('active');
-	}
-}
-
-// ==========================================
-// RENAME MODAL
-// Shows current sport name in title and updates after rename
-// ==========================================
-
-function openRenameModal(sportName) {
-	const renameModal = document.getElementById('renameModal');
-	const oldSportName = document.getElementById('oldSportName');
-	const newSportNameInput = document.getElementById('newSportNameInput');
-	const modalTitle = document.getElementById('renameModalTitle');
-
-	if (!renameModal || !oldSportName || !newSportNameInput) return;
-
-	// Set old sport name
-	oldSportName.value = sportName;
-	newSportNameInput.value = sportName;
-
-	// UPDATE: Set sport name in modal title
-	if (modalTitle) {
-		modalTitle.textContent = 'Rename Sport - ' + sportName;
-	}
-
-	renameModal.classList.add('active');
-	newSportNameInput.focus();
-	newSportNameInput.select();
-}
-
-function closeRenameModal() {
-	const renameModal = document.getElementById('renameModal');
-	if (renameModal) {
-		renameModal.classList.remove('active');
-	}
-}
-
-// ==========================================
-// MODAL EVENT LISTENERS
-// ==========================================
-
-document.addEventListener('DOMContentLoaded', function () {
-	// Close icon modal on outside click
-	const iconModal = document.getElementById('iconModal');
-	if (iconModal) {
-		iconModal.addEventListener('click', function (e) {
-			if (e.target === this) closeIconModal();
-		});
-
-		const iconForm = iconModal.querySelector('form');
-		if (iconForm) {
-			iconForm.addEventListener('submit', function (e) {
-				saveScrollPosition();
-			});
-		}
-	}
-
-	// Close rename modal on outside click
-	const renameModal = document.getElementById('renameModal');
-	if (renameModal) {
-		renameModal.addEventListener('click', function (e) {
-			if (e.target === this) closeRenameModal();
-		});
-
-		const renameForm = renameModal.querySelector('form');
-		if (renameForm) {
-			renameForm.addEventListener('submit', function (e) {
-				saveScrollPosition();
-			});
-		}
-	}
-
-	// Save scroll position for delete icon forms
-	const deleteIconForms = document.querySelectorAll('form[onsubmit*="Delete icon"]');
-	deleteIconForms.forEach(form => {
+// Attach saveScrollPosition to all forms
+function attachScrollSaveToForms() {
+	const allForms = document.querySelectorAll('form');
+	allForms.forEach(form => {
 		form.addEventListener('submit', function (e) {
 			saveScrollPosition();
 		});
 	});
-
-	// Save scroll position for delete sport forms
-	const deleteSportForms = document.querySelectorAll('form button[name="delete_sport"]');
-	deleteSportForms.forEach(button => {
-		const form = button.closest('form');
-		if (form) {
-			form.addEventListener('submit', function (e) {
-				saveScrollPosition();
-			});
-		}
-	});
-});
+}
 
 // ==========================================
-// DRAG AND DROP WITH CONFIRMATION MODAL
+// FILE INPUT LISTENERS
+// ==========================================
+
+function initFileInputListeners() {
+	// All file inputs should update their display text
+	const fileInputs = document.querySelectorAll('.file-upload-input');
+	fileInputs.forEach(input => {
+		input.addEventListener('change', function (e) {
+			const fileName = e.target.files[0]?.name || 'No file chosen';
+
+			// Find the closest file name display element
+			const wrapper = e.target.closest('.file-upload-wrapper') || e.target.closest('.icon-upload-area');
+			if (wrapper) {
+				const display = wrapper.querySelector('.file-name-display, .file-name-inline');
+				if (display) {
+					display.textContent = fileName;
+				}
+			}
+
+			// Special handling for specific inputs
+			const inputId = e.target.id;
+
+			if (inputId === 'home_icon_file') {
+				const display = document.getElementById('homeIconFileName');
+				if (display) display.textContent = fileName;
+			}
+
+			if (inputId === 'new_sport_icon') {
+				const display = document.getElementById('newSportFileName');
+				if (display) display.textContent = fileName;
+			}
+		});
+	});
+}
+
+// ==========================================
+// MODAL FUNCTIONS
+// ==========================================
+
+function closeModal(modalId) {
+	const modal = document.getElementById(modalId);
+	if (modal) {
+		modal.classList.remove('active');
+	}
+}
+
+function initModalCloseHandlers() {
+	// Close modals on outside click
+	const modals = document.querySelectorAll('.modal');
+	modals.forEach(modal => {
+		modal.addEventListener('click', function (e) {
+			if (e.target === this) {
+				// Special handling for save order modal
+				if (this.id === 'saveOrderModal') {
+					cancelOrderChange();
+				} else {
+					this.classList.remove('active');
+				}
+			}
+		});
+	});
+}
+
+// ==========================================
+// DELETE ICON MODAL
+// ==========================================
+
+function openDeleteIconModal(sportName, displayName) {
+	const modal = document.getElementById('deleteIconModal');
+	const form = document.getElementById('deleteIconForm');
+	const sportNameInput = document.getElementById('deleteIconSportName');
+	const messageElement = document.getElementById('deleteIconMessage');
+
+	if (!modal || !form) return;
+
+	const isHome = sportName === 'home';
+
+	// Set form action based on home or sport
+	const deleteInput = form.querySelector('input[name="delete_icon"], input[name="delete_home_icon"]');
+	if (deleteInput) {
+		deleteInput.name = isHome ? 'delete_home_icon' : 'delete_icon';
+	}
+
+	// Set sport name
+	if (sportNameInput) {
+		sportNameInput.value = sportName;
+	}
+
+	// Set message
+	if (messageElement) {
+		messageElement.textContent = 'Are you sure you want to delete the icon for "' + displayName + '"?';
+	}
+
+	modal.classList.add('active');
+}
+
+// ==========================================
+// RENAME MODAL
+// ==========================================
+
+function openRenameModal(sportName) {
+	const modal = document.getElementById('renameModal');
+	const oldNameInput = document.getElementById('renameOldSportName');
+	const newNameInput = document.getElementById('renameNewSportName');
+
+	if (!modal) return;
+
+	// Set old sport name
+	if (oldNameInput) oldNameInput.value = sportName;
+
+	// Pre-fill new name with current name
+	if (newNameInput) {
+		newNameInput.value = sportName;
+		// Focus and select the text
+		setTimeout(() => {
+			newNameInput.focus();
+			newNameInput.select();
+		}, 100);
+	}
+
+	modal.classList.add('active');
+}
+
+// ==========================================
+// DELETE SPORT MODAL
+// ==========================================
+
+function openDeleteModal(sportName) {
+	const modal = document.getElementById('deleteModal');
+	const sportNameDisplay = document.getElementById('deleteSportNameDisplay');
+	const sportNameInput = document.getElementById('deleteSportName');
+	const confirmInput = document.getElementById('confirmSportNameInput');
+	const confirmBtn = document.getElementById('confirmDeleteBtn');
+
+	if (!modal) return;
+
+	// Set sport name
+	if (sportNameDisplay) sportNameDisplay.textContent = sportName;
+	if (sportNameInput) sportNameInput.value = sportName;
+
+	// Reset confirm input
+	if (confirmInput) confirmInput.value = '';
+	if (confirmBtn) confirmBtn.disabled = true;
+
+	modal.classList.add('active');
+
+	// Focus on confirm input
+	if (confirmInput) {
+		setTimeout(() => confirmInput.focus(), 100);
+	}
+}
+
+// Initialize delete confirmation input listener
+function initDeleteConfirmation() {
+	const confirmInput = document.getElementById('confirmSportNameInput');
+	const confirmBtn = document.getElementById('confirmDeleteBtn');
+	const sportNameInput = document.getElementById('deleteSportName');
+
+	if (confirmInput && confirmBtn && sportNameInput) {
+		confirmInput.addEventListener('input', function () {
+			const typedName = confirmInput.value.trim();
+			const expectedName = sportNameInput.value;
+
+			// Enable button only if names match exactly
+			confirmBtn.disabled = typedName !== expectedName;
+		});
+	}
+}
+
+// ==========================================
+// DRAG AND DROP
 // ==========================================
 
 let draggedElement = null;
-let draggedIndex = null;
 let autoScrollInterval = null;
-let pendingOrder = null; // Store the new order before confirmation
+let mouseY = 0;
+const SCROLL_THRESHOLD = 100;
+const SCROLL_SPEED = 8;
 
 function initDragAndDrop() {
 	const accordionsContainer = document.getElementById('pagesAccordions');
-	if (!accordionsContainer) {
-		return;
-	}
+	if (!accordionsContainer) return;
 
 	const accordions = accordionsContainer.querySelectorAll('details');
-
-	if (accordions.length === 0) {
-		return;
-	}
+	if (accordions.length === 0) return;
 
 	accordions.forEach((details, index) => {
-		// IMPORTANT: Skip Home page - it should NOT be draggable
-		if (details.getAttribute('data-page-type') === 'home') {
-			return;
-		}
+		// Skip Home page - not draggable
+		if (details.getAttribute('data-page-type') === 'home') return;
 
 		details.setAttribute('draggable', 'true');
 
 		details.addEventListener('dragstart', function (e) {
 			draggedElement = this;
-			draggedIndex = index;
 			this.classList.add('dragging');
-
 			e.dataTransfer.effectAllowed = 'move';
 			e.dataTransfer.setData('text/html', this.innerHTML);
-
 			this.style.opacity = '0.4';
-
 			startAutoScroll();
 		});
 
 		details.addEventListener('dragend', function (e) {
 			this.classList.remove('dragging');
 			this.style.opacity = '1';
-
 			stopAutoScroll();
-
 			accordions.forEach(d => d.classList.remove('drag-over'));
 		});
 
 		details.addEventListener('dragover', function (e) {
 			e.preventDefault();
 			e.dataTransfer.dropEffect = 'move';
-
 			if (this !== draggedElement) {
 				this.classList.add('drag-over');
 			}
-
 			updateMousePosition(e);
-
 			return false;
 		});
 
@@ -294,7 +285,6 @@ function initDragAndDrop() {
 		details.addEventListener('drop', function (e) {
 			e.stopPropagation();
 			e.preventDefault();
-
 			this.classList.remove('drag-over');
 
 			if (draggedElement !== this) {
@@ -305,14 +295,12 @@ function initDragAndDrop() {
 				const draggedPos = allDetails.indexOf(draggedCard);
 				const targetPos = allDetails.indexOf(targetCard);
 
-				// Move the element in DOM
 				if (draggedPos < targetPos) {
 					targetCard.parentNode.insertBefore(draggedCard, targetCard.nextSibling);
 				} else {
 					targetCard.parentNode.insertBefore(draggedCard, targetCard);
 				}
 
-				// Show confirmation modal
 				showSaveOrderModal();
 			}
 
@@ -321,22 +309,12 @@ function initDragAndDrop() {
 	});
 }
 
-// ==========================================
-// AUTO-SCROLL DURING DRAG
-// ==========================================
-
-let mouseY = 0;
-const SCROLL_THRESHOLD = 100;
-const SCROLL_SPEED = 8;
-
 function updateMousePosition(e) {
 	mouseY = e.clientY;
 }
 
 function startAutoScroll() {
-	if (autoScrollInterval) {
-		clearInterval(autoScrollInterval);
-	}
+	if (autoScrollInterval) clearInterval(autoScrollInterval);
 
 	autoScrollInterval = setInterval(() => {
 		if (!draggedElement) {
@@ -350,12 +328,10 @@ function startAutoScroll() {
 
 		if (mouseY < SCROLL_THRESHOLD && scrollTop > 0) {
 			const intensity = (SCROLL_THRESHOLD - mouseY) / SCROLL_THRESHOLD;
-			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
-			window.scrollBy(0, -scrollAmount);
+			window.scrollBy(0, -Math.ceil(SCROLL_SPEED * intensity));
 		} else if (mouseY > windowHeight - SCROLL_THRESHOLD && scrollTop + windowHeight < documentHeight) {
 			const intensity = (mouseY - (windowHeight - SCROLL_THRESHOLD)) / SCROLL_THRESHOLD;
-			const scrollAmount = Math.ceil(SCROLL_SPEED * intensity);
-			window.scrollBy(0, scrollAmount);
+			window.scrollBy(0, Math.ceil(SCROLL_SPEED * intensity));
 		}
 	}, 16);
 }
@@ -368,7 +344,7 @@ function stopAutoScroll() {
 }
 
 // ==========================================
-// SAVE ORDER CONFIRMATION MODAL
+// SAVE ORDER MODAL
 // ==========================================
 
 function showSaveOrderModal() {
@@ -378,37 +354,23 @@ function showSaveOrderModal() {
 	}
 }
 
-function closeSaveOrderModal() {
-	const modal = document.getElementById('saveOrderModal');
-	if (modal) {
-		modal.classList.remove('active');
-	}
-}
-
 function cancelOrderChange() {
-	// Reload page to restore original order
 	location.reload();
 }
 
 function confirmSaveOrder() {
-	closeSaveOrderModal();
+	closeModal('saveOrderModal');
 	saveNewOrder();
 }
 
-// ==========================================
-// SAVE NEW ORDER TO SERVER
-// ==========================================
-
 function saveNewOrder() {
 	const accordionsContainer = document.getElementById('pagesAccordions');
-	if (!accordionsContainer) {
-		return;
-	}
+	if (!accordionsContainer) return;
 
 	const accordions = accordionsContainer.querySelectorAll('details');
-
 	const newOrder = [];
-	accordions.forEach((details, index) => {
+
+	accordions.forEach(details => {
 		const sportName = details.getAttribute('data-sport-name');
 		if (sportName) {
 			newOrder.push(sportName);
@@ -436,45 +398,10 @@ function showNotification(message, type) {
 	const notification = document.createElement('div');
 	notification.className = 'drag-notification ' + type;
 	notification.textContent = message;
-
 	document.body.appendChild(notification);
 
 	setTimeout(() => {
 		notification.style.animation = 'slideOut 0.3s ease';
-		setTimeout(() => {
-			notification.remove();
-		}, 300);
+		setTimeout(() => notification.remove(), 300);
 	}, 3000);
 }
-
-// ==========================================
-// INITIALIZATION
-// ==========================================
-
-window.addEventListener('DOMContentLoaded', function () {
-	setTimeout(function () {
-		initDragAndDrop();
-	}, 100);
-});
-
-window.addEventListener('load', function () {
-	const accordionsContainer = document.getElementById('pagesAccordions');
-	if (accordionsContainer) {
-		const accordions = accordionsContainer.querySelectorAll('details[draggable="true"]');
-		if (accordions.length === 0) {
-			initDragAndDrop();
-		}
-	}
-});
-
-// Close modals on outside click
-document.addEventListener('DOMContentLoaded', function () {
-	const saveOrderModal = document.getElementById('saveOrderModal');
-	if (saveOrderModal) {
-		saveOrderModal.addEventListener('click', function (e) {
-			if (e.target === this) {
-				cancelOrderChange();
-			}
-		});
-	}
-});
