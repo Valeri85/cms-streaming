@@ -142,6 +142,43 @@ function normalizeDomain($domain) {
     return str_replace('www.', '', strtolower(trim($domain)));
 }
 
+// Load available languages
+function getAvailableLanguages() {
+    $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
+    $languages = [];
+    
+    if (is_dir($langDir)) {
+        $files = glob($langDir . '*.json');
+        
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            $data = json_decode($content, true);
+            
+            if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
+                $code = $data['language_info']['code'];
+                $languages[$code] = [
+                    'name' => $data['language_info']['name'] ?? $code,
+                    'flag' => $data['language_info']['flag'] ?? '🏳️'
+                ];
+            }
+        }
+    }
+    
+    // Fallback if no languages found
+    if (empty($languages)) {
+        $languages = [
+            'en' => ['name' => 'English', 'flag' => '🇬🇧'],
+            'es' => ['name' => 'Spanish', 'flag' => '🇪🇸'],
+            'fr' => ['name' => 'French', 'flag' => '🇫🇷'],
+            'de' => ['name' => 'German', 'flag' => '🇩🇪']
+        ];
+    }
+    
+    return $languages;
+}
+
+$availableLanguages = getAvailableLanguages();
+
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
@@ -303,6 +340,9 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                 <a href="website-add.php" class="nav-item">
                     <span>➕</span> Add Website
                 </a>
+                <a href="languages.php" class="nav-item">
+                    <span>🌐</span> Languages
+                </a>
             </nav>
             
             <div class="cms-user">
@@ -370,11 +410,13 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                             <div class="form-group">
                                 <label for="language">Language</label>
                                 <select id="language" name="language">
-                                    <option value="en" <?php echo $website['language'] === 'en' ? 'selected' : ''; ?>>English</option>
-                                    <option value="es" <?php echo $website['language'] === 'es' ? 'selected' : ''; ?>>Spanish</option>
-                                    <option value="fr" <?php echo $website['language'] === 'fr' ? 'selected' : ''; ?>>French</option>
-                                    <option value="de" <?php echo $website['language'] === 'de' ? 'selected' : ''; ?>>German</option>
+                                    <?php foreach ($availableLanguages as $code => $lang): ?>
+                                        <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($website['language'] === $code) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($lang['flag'] . ' ' . $lang['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
+                                <small><a href="languages.php">Manage languages</a></small>
                             </div>
                         </div>
                         

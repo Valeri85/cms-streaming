@@ -274,6 +274,43 @@ function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryCo
     }
 }
 
+// Load available languages
+function getAvailableLanguages() {
+    $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
+    $languages = [];
+    
+    if (is_dir($langDir)) {
+        $files = glob($langDir . '*.json');
+        
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            $data = json_decode($content, true);
+            
+            if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
+                $code = $data['language_info']['code'];
+                $languages[$code] = [
+                    'name' => $data['language_info']['name'] ?? $code,
+                    'flag' => $data['language_info']['flag'] ?? '🏳️'
+                ];
+            }
+        }
+    }
+    
+    // Fallback if no languages found
+    if (empty($languages)) {
+        $languages = [
+            'en' => ['name' => 'English', 'flag' => '🇬🇧'],
+            'es' => ['name' => 'Spanish', 'flag' => '🇪🇸'],
+            'fr' => ['name' => 'French', 'flag' => '🇫🇷'],
+            'de' => ['name' => 'German', 'flag' => '🇩🇪']
+        ];
+    }
+    
+    return $languages;
+}
+
+$availableLanguages = getAvailableLanguages();
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $configContent = file_get_contents($configFile);
     $configData = json_decode($configContent, true);
@@ -398,6 +435,9 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                 <a href="website-add.php" class="nav-item active">
                     <span>➕</span> Add Website
                 </a>
+                <a href="languages.php" class="nav-item">
+                    <span>🌐</span> Languages
+                </a>
             </nav>
             
             <div class="cms-user">
@@ -458,11 +498,13 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                             <div class="form-group">
                                 <label for="language">Language</label>
                                 <select id="language" name="language">
-                                    <option value="en" selected>English</option>
-                                    <option value="es">Spanish</option>
-                                    <option value="fr">French</option>
-                                    <option value="de">German</option>
+                                    <?php foreach ($availableLanguages as $code => $lang): ?>
+                                        <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($code === 'en') ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($lang['flag'] . ' ' . $lang['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
                                 </select>
+                                <small><a href="languages.php">Manage languages</a></small>
                             </div>
                         </div>
                         

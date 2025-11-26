@@ -23,26 +23,14 @@ function restoreScrollPosition() {
 // ==========================================
 
 window.addEventListener('DOMContentLoaded', function () {
-	// Restore scroll position after page load
 	restoreScrollPosition();
-
-	// Attach scroll position saving to ALL forms
 	attachScrollSaveToForms();
-
-	// Initialize file input listeners
 	initFileInputListeners();
-
-	// Initialize delete confirmation input
 	initDeleteConfirmation();
-
-	// Initialize drag and drop
 	setTimeout(initDragAndDrop, 100);
-
-	// Initialize modal close on outside click
 	initModalCloseHandlers();
 });
 
-// Attach saveScrollPosition to all forms
 function attachScrollSaveToForms() {
 	const allForms = document.querySelectorAll('form');
 	allForms.forEach(form => {
@@ -57,13 +45,11 @@ function attachScrollSaveToForms() {
 // ==========================================
 
 function initFileInputListeners() {
-	// All file inputs should update their display text
 	const fileInputs = document.querySelectorAll('.file-upload-input');
 	fileInputs.forEach(input => {
 		input.addEventListener('change', function (e) {
 			const fileName = e.target.files[0]?.name || 'No file chosen';
 
-			// Find the closest file name display element
 			const wrapper = e.target.closest('.file-upload-wrapper') || e.target.closest('.icon-upload-area');
 			if (wrapper) {
 				const display = wrapper.querySelector('.file-name-display, .file-name-inline');
@@ -72,7 +58,6 @@ function initFileInputListeners() {
 				}
 			}
 
-			// Special handling for specific inputs
 			const inputId = e.target.id;
 
 			if (inputId === 'home_icon_file') {
@@ -100,12 +85,10 @@ function closeModal(modalId) {
 }
 
 function initModalCloseHandlers() {
-	// Close modals on outside click
 	const modals = document.querySelectorAll('.modal');
 	modals.forEach(modal => {
 		modal.addEventListener('click', function (e) {
 			if (e.target === this) {
-				// Special handling for save order modal
 				if (this.id === 'saveOrderModal') {
 					cancelOrderChange();
 				} else {
@@ -130,18 +113,15 @@ function openDeleteIconModal(sportName, displayName) {
 
 	const isHome = sportName === 'home';
 
-	// Set form action based on home or sport
 	const deleteInput = form.querySelector('input[name="delete_icon"], input[name="delete_home_icon"]');
 	if (deleteInput) {
 		deleteInput.name = isHome ? 'delete_home_icon' : 'delete_icon';
 	}
 
-	// Set sport name
 	if (sportNameInput) {
 		sportNameInput.value = sportName;
 	}
 
-	// Set message
 	if (messageElement) {
 		messageElement.textContent = 'Are you sure you want to delete the icon for "' + displayName + '"?';
 	}
@@ -160,13 +140,10 @@ function openRenameModal(sportName) {
 
 	if (!modal) return;
 
-	// Set old sport name
 	if (oldNameInput) oldNameInput.value = sportName;
 
-	// Pre-fill new name with current name
 	if (newNameInput) {
 		newNameInput.value = sportName;
-		// Focus and select the text
 		setTimeout(() => {
 			newNameInput.focus();
 			newNameInput.select();
@@ -189,23 +166,19 @@ function openDeleteModal(sportName) {
 
 	if (!modal) return;
 
-	// Set sport name
 	if (sportNameDisplay) sportNameDisplay.textContent = sportName;
 	if (sportNameInput) sportNameInput.value = sportName;
 
-	// Reset confirm input
 	if (confirmInput) confirmInput.value = '';
 	if (confirmBtn) confirmBtn.disabled = true;
 
 	modal.classList.add('active');
 
-	// Focus on confirm input
 	if (confirmInput) {
 		setTimeout(() => confirmInput.focus(), 100);
 	}
 }
 
-// Initialize delete confirmation input listener
 function initDeleteConfirmation() {
 	const confirmInput = document.getElementById('confirmSportNameInput');
 	const confirmBtn = document.getElementById('confirmDeleteBtn');
@@ -215,8 +188,6 @@ function initDeleteConfirmation() {
 		confirmInput.addEventListener('input', function () {
 			const typedName = confirmInput.value.trim();
 			const expectedName = sportNameInput.value;
-
-			// Enable button only if names match exactly
 			confirmBtn.disabled = typedName !== expectedName;
 		});
 	}
@@ -240,7 +211,6 @@ function initDragAndDrop() {
 	if (accordions.length === 0) return;
 
 	accordions.forEach((details, index) => {
-		// Skip Home page - not draggable
 		if (details.getAttribute('data-page-type') === 'home') return;
 
 		details.setAttribute('draggable', 'true');

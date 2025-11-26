@@ -553,6 +553,9 @@ $homeStatus = getHomeStatusIndicator($pagesSeo, $homeIcon);
                 <a href="website-add.php" class="nav-item">
                     <span>➕</span> Add Website
                 </a>
+                <a href="languages.php" class="nav-item">
+                    <span>🌐</span> Languages
+                </a>
             </nav>
             
             <div class="cms-user">

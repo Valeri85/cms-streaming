@@ -87,6 +87,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
                 <a href="website-add.php" class="nav-item">
                     <span>➕</span> Add Website
                 </a>
+                <a href="languages.php" class="nav-item">
+                    <span>🌐</span> Languages
+                </a>
             </nav>
             
             <div class="cms-user">

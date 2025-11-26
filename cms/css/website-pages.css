@@ -101,7 +101,6 @@
 
 /* ==========================================
    ACCORDION HEADER (SUMMARY)
-   [Drag] [Status] [Icon 24px] [Name] ... [arrow]
    ========================================== */
 .pages-accordion summary {
 	padding: 15px 20px;
@@ -152,7 +151,7 @@
 	flex-shrink: 0;
 }
 
-/* Small Icon in Header (24x24px, display only) */
+/* Small Icon in Header */
 .header-icon-small {
 	width: 24px;
 	height: 24px;
@@ -387,7 +386,7 @@
 }
 
 /* ==========================================
-   FILE UPLOAD STYLES (original)
+   FILE UPLOAD STYLES
    ========================================== */
 .file-upload-wrapper {
 	position: relative;
