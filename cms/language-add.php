@@ -15,6 +15,145 @@ if (!file_exists($langDir)) {
     mkdir($langDir, 0755, true);
 }
 
+// ==========================================
+// MASTER FLAG LOOKUP - 50 Most Common Languages
+// This ensures flags are ALWAYS emojis, never text codes
+// ==========================================
+$FLAG_LOOKUP = [
+    // Major World Languages
+    'en' => '🇬🇧', // English (UK flag as default)
+    'es' => '🇪🇸', // Spanish
+    'fr' => '🇫🇷', // French
+    'de' => '🇩🇪', // German
+    'it' => '🇮🇹', // Italian
+    'pt' => '🇵🇹', // Portuguese
+    'ru' => '🇷🇺', // Russian
+    'zh' => '🇨🇳', // Chinese
+    'ja' => '🇯🇵', // Japanese
+    'ko' => '🇰🇷', // Korean
+    'ar' => '🇸🇦', // Arabic
+    'hi' => '🇮🇳', // Hindi
+    
+    // European Languages
+    'nl' => '🇳🇱', // Dutch
+    'pl' => '🇵🇱', // Polish
+    'tr' => '🇹🇷', // Turkish
+    'sv' => '🇸🇪', // Swedish
+    'no' => '🇳🇴', // Norwegian
+    'da' => '🇩🇰', // Danish
+    'fi' => '🇫🇮', // Finnish
+    'cs' => '🇨🇿', // Czech
+    'el' => '🇬🇷', // Greek
+    'hu' => '🇭🇺', // Hungarian
+    'ro' => '🇷🇴', // Romanian
+    'uk' => '🇺🇦', // Ukrainian
+    'bg' => '🇧🇬', // Bulgarian
+    'hr' => '🇭🇷', // Croatian
+    'sk' => '🇸🇰', // Slovak
+    'sl' => '🇸🇮', // Slovenian
+    'sr' => '🇷🇸', // Serbian
+    'et' => '🇪🇪', // Estonian
+    'lv' => '🇱🇻', // Latvian
+    'lt' => '🇱🇹', // Lithuanian
+    'ca' => '🇪🇸', // Catalan (Spain flag)
+    'eu' => '🇪🇸', // Basque (Spain flag)
+    'gl' => '🇪🇸', // Galician (Spain flag)
+    
+    // Asian Languages
+    'th' => '🇹🇭', // Thai
+    'vi' => '🇻🇳', // Vietnamese
+    'id' => '🇮🇩', // Indonesian
+    'ms' => '🇲🇾', // Malay
+    'tl' => '🇵🇭', // Filipino/Tagalog
+    'bn' => '🇧🇩', // Bengali
+    'ta' => '🇮🇳', // Tamil
+    'te' => '🇮🇳', // Telugu
+    'mr' => '🇮🇳', // Marathi
+    'gu' => '🇮🇳', // Gujarati
+    'kn' => '🇮🇳', // Kannada
+    'ml' => '🇮🇳', // Malayalam
+    'pa' => '🇮🇳', // Punjabi
+    'ur' => '🇵🇰', // Urdu
+    
+    // Middle Eastern
+    'he' => '🇮🇱', // Hebrew
+    'fa' => '🇮🇷', // Persian/Farsi
+    
+    // African
+    'sw' => '🇰🇪', // Swahili
+    'af' => '🇿🇦', // Afrikaans
+    
+    // Regional Variants
+    'pt-br' => '🇧🇷', // Brazilian Portuguese
+    'en-us' => '🇺🇸', // American English
+    'zh-tw' => '🇹🇼', // Traditional Chinese
+];
+
+// ==========================================
+// 50 LANGUAGE PRESETS - Quick Selection
+// Most commonly used languages for sports streaming
+// ==========================================
+$languagePresets = [
+    // Tier 1: Most Popular (Top Row)
+    'en' => ['name' => 'English', 'flag' => '🇬🇧'],
+    'es' => ['name' => 'Español', 'flag' => '🇪🇸'],
+    'fr' => ['name' => 'Français', 'flag' => '🇫🇷'],
+    'de' => ['name' => 'Deutsch', 'flag' => '🇩🇪'],
+    'it' => ['name' => 'Italiano', 'flag' => '🇮🇹'],
+    'pt' => ['name' => 'Português', 'flag' => '🇵🇹'],
+    'ru' => ['name' => 'Русский', 'flag' => '🇷🇺'],
+    'zh' => ['name' => '中文', 'flag' => '🇨🇳'],
+    'ja' => ['name' => '日本語', 'flag' => '🇯🇵'],
+    'ko' => ['name' => '한국어', 'flag' => '🇰🇷'],
+    'ar' => ['name' => 'العربية', 'flag' => '🇸🇦'],
+    'hi' => ['name' => 'हिन्दी', 'flag' => '🇮🇳'],
+    
+    // Tier 2: European Languages
+    'nl' => ['name' => 'Nederlands', 'flag' => '🇳🇱'],
+    'pl' => ['name' => 'Polski', 'flag' => '🇵🇱'],
+    'tr' => ['name' => 'Türkçe', 'flag' => '🇹🇷'],
+    'sv' => ['name' => 'Svenska', 'flag' => '🇸🇪'],
+    'no' => ['name' => 'Norsk', 'flag' => '🇳🇴'],
+    'da' => ['name' => 'Dansk', 'flag' => '🇩🇰'],
+    'fi' => ['name' => 'Suomi', 'flag' => '🇫🇮'],
+    'cs' => ['name' => 'Čeština', 'flag' => '🇨🇿'],
+    'el' => ['name' => 'Ελληνικά', 'flag' => '🇬🇷'],
+    'hu' => ['name' => 'Magyar', 'flag' => '🇭🇺'],
+    'ro' => ['name' => 'Română', 'flag' => '🇷🇴'],
+    'uk' => ['name' => 'Українська', 'flag' => '🇺🇦'],
+    'bg' => ['name' => 'Български', 'flag' => '🇧🇬'],
+    'hr' => ['name' => 'Hrvatski', 'flag' => '🇭🇷'],
+    'sk' => ['name' => 'Slovenčina', 'flag' => '🇸🇰'],
+    'sl' => ['name' => 'Slovenščina', 'flag' => '🇸🇮'],
+    'sr' => ['name' => 'Српски', 'flag' => '🇷🇸'],
+    'et' => ['name' => 'Eesti', 'flag' => '🇪🇪'],
+    'lv' => ['name' => 'Latviešu', 'flag' => '🇱🇻'],
+    'lt' => ['name' => 'Lietuvių', 'flag' => '🇱🇹'],
+    'ca' => ['name' => 'Català', 'flag' => '🇪🇸'],
+    
+    // Tier 3: Asian Languages
+    'th' => ['name' => 'ไทย', 'flag' => '🇹🇭'],
+    'vi' => ['name' => 'Tiếng Việt', 'flag' => '🇻🇳'],
+    'id' => ['name' => 'Bahasa Indonesia', 'flag' => '🇮🇩'],
+    'ms' => ['name' => 'Bahasa Melayu', 'flag' => '🇲🇾'],
+    'tl' => ['name' => 'Filipino', 'flag' => '🇵🇭'],
+    'bn' => ['name' => 'বাংলা', 'flag' => '🇧🇩'],
+    'ta' => ['name' => 'தமிழ்', 'flag' => '🇮🇳'],
+    'te' => ['name' => 'తెలుగు', 'flag' => '🇮🇳'],
+    'ur' => ['name' => 'اردو', 'flag' => '🇵🇰'],
+    
+    // Tier 4: Middle Eastern & African
+    'he' => ['name' => 'עברית', 'flag' => '🇮🇱'],
+    'fa' => ['name' => 'فارسی', 'flag' => '🇮🇷'],
+    'sw' => ['name' => 'Kiswahili', 'flag' => '🇰🇪'],
+    'af' => ['name' => 'Afrikaans', 'flag' => '🇿🇦'],
+    
+    // Tier 5: Regional Variants (Popular for sports)
+    'pt-br' => ['name' => 'Português (Brasil)', 'flag' => '🇧🇷'],
+    'en-us' => ['name' => 'English (US)', 'flag' => '🇺🇸'],
+    'zh-tw' => ['name' => '繁體中文', 'flag' => '🇹🇼'],
+];
+
 // Load existing languages for "copy from" dropdown
 $existingLanguages = [];
 if (is_dir($langDir)) {
@@ -34,46 +173,29 @@ if (is_dir($langDir)) {
     }
 }
 
-// Common language presets for quick selection
-$languagePresets = [
-    'fr' => ['name' => 'Français', 'flag' => '🇫🇷'],
-    'de' => ['name' => 'Deutsch', 'flag' => '🇩🇪'],
-    'it' => ['name' => 'Italiano', 'flag' => '🇮🇹'],
-    'pt' => ['name' => 'Português', 'flag' => '🇵🇹'],
-    'nl' => ['name' => 'Nederlands', 'flag' => '🇳🇱'],
-    'pl' => ['name' => 'Polski', 'flag' => '🇵🇱'],
-    'ru' => ['name' => 'Русский', 'flag' => '🇷🇺'],
-    'tr' => ['name' => 'Türkçe', 'flag' => '🇹🇷'],
-    'ar' => ['name' => 'العربية', 'flag' => '🇸🇦'],
-    'ja' => ['name' => '日本語', 'flag' => '🇯🇵'],
-    'ko' => ['name' => '한국어', 'flag' => '🇰🇷'],
-    'zh' => ['name' => '中文', 'flag' => '🇨🇳'],
-    'hi' => ['name' => 'हिन्दी', 'flag' => '🇮🇳'],
-    'sv' => ['name' => 'Svenska', 'flag' => '🇸🇪'],
-    'no' => ['name' => 'Norsk', 'flag' => '🇳🇴'],
-    'da' => ['name' => 'Dansk', 'flag' => '🇩🇰'],
-    'fi' => ['name' => 'Suomi', 'flag' => '🇫🇮'],
-    'cs' => ['name' => 'Čeština', 'flag' => '🇨🇿'],
-    'el' => ['name' => 'Ελληνικά', 'flag' => '🇬🇷'],
-    'hu' => ['name' => 'Magyar', 'flag' => '🇭🇺'],
-    'ro' => ['name' => 'Română', 'flag' => '🇷🇴'],
-    'uk' => ['name' => 'Українська', 'flag' => '🇺🇦'],
-    'bg' => ['name' => 'Български', 'flag' => '🇧🇬'],
-    'hr' => ['name' => 'Hrvatski', 'flag' => '🇭🇷'],
-    'sk' => ['name' => 'Slovenčina', 'flag' => '🇸🇰'],
-    'sl' => ['name' => 'Slovenščina', 'flag' => '🇸🇮'],
-    'sr' => ['name' => 'Српски', 'flag' => '🇷🇸'],
-    'id' => ['name' => 'Bahasa Indonesia', 'flag' => '🇮🇩'],
-    'ms' => ['name' => 'Bahasa Melayu', 'flag' => '🇲🇾'],
-    'th' => ['name' => 'ไทย', 'flag' => '🇹🇭'],
-    'vi' => ['name' => 'Tiếng Việt', 'flag' => '🇻🇳'],
-    'he' => ['name' => 'עברית', 'flag' => '🇮🇱'],
-    'fa' => ['name' => 'فارسی', 'flag' => '🇮🇷']
-];
-
 // Remove already existing languages from presets
 foreach ($existingLanguages as $code => $info) {
     unset($languagePresets[$code]);
+}
+
+// ==========================================
+// HELPER FUNCTION: Validate and fix flag
+// Ensures flag is always an emoji, never text
+// ==========================================
+function validateFlag($flag, $langCode, $FLAG_LOOKUP) {
+    // Check if flag looks like an emoji (contains special unicode chars)
+    // Flag emojis are typically 4+ bytes
+    if (mb_strlen($flag) >= 1 && mb_strlen($flag) <= 4 && strlen($flag) >= 4) {
+        return $flag; // Looks like an emoji
+    }
+    
+    // Flag is probably text (like "IT" or "EN"), look up correct emoji
+    if (isset($FLAG_LOOKUP[$langCode])) {
+        return $FLAG_LOOKUP[$langCode];
+    }
+    
+    // Default fallback
+    return '🏳️';
 }
 
 // ==========================================
@@ -89,13 +211,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
     // Validation
     if (empty($langCode)) {
         $error = "❌ Language code is required.";
-    } elseif (!preg_match('/^[a-z]{2,3}$/', $langCode)) {
-        $error = "❌ Language code must be 2-3 lowercase letters (e.g., 'fr', 'de').";
+    } elseif (!preg_match('/^[a-z]{2,3}(-[a-z]{2})?$/', $langCode)) {
+        $error = "❌ Language code must be 2-3 lowercase letters, optionally with region (e.g., 'fr', 'pt-br').";
     } elseif (empty($langName)) {
         $error = "❌ Language name is required.";
     } elseif (file_exists($langDir . $langCode . '.json')) {
         $error = "❌ Language '{$langCode}' already exists!";
     } else {
+        // ✅ Validate and fix flag if needed
+        $langFlag = validateFlag($langFlag, $langCode, $FLAG_LOOKUP);
+        
         // Create new language file
         $newLangData = [
             'language_info' => [
@@ -171,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
     <link rel="stylesheet" href="css/languages.css">
     <style>
         .add-language-container {
-            max-width: 700px;
+            max-width: 900px;
         }
         
         .flag-preview-large {
@@ -199,8 +324,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
         
         .presets-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
             gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .presets-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .presets-grid::-webkit-scrollbar-track {
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+        
+        .presets-grid::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
         }
         
         .preset-btn {
@@ -247,90 +389,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
         .preset-code {
             font-size: 11px;
             color: #7f8c8d;
-            font-family: monospace;
-        }
-        
-        .copy-from-section {
-            background: #e3f2fd;
-            border: 2px solid #90caf9;
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 25px;
-        }
-        
-        .copy-from-section h4 {
-            color: #1976d2;
-            margin: 0 0 15px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .copy-options {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .copy-option {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 15px;
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .copy-option:hover {
-            border-color: #3498db;
-        }
-        
-        .copy-option.selected {
-            border-color: #1976d2;
-            background: #e3f2fd;
-        }
-        
-        .copy-option input[type="radio"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-        
-        .copy-option-flag {
-            font-size: 28px;
-        }
-        
-        .copy-option-info {
-            flex: 1;
-        }
-        
-        .copy-option-name {
-            font-weight: 600;
-            color: #2c3e50;
-        }
-        
-        .copy-option-desc {
-            font-size: 12px;
-            color: #7f8c8d;
         }
         
         .manual-input-section {
             background: white;
             border: 2px solid #e9ecef;
             border-radius: 12px;
-            padding: 25px;
-            margin-top: 25px;
+            padding: 20px;
+            margin-bottom: 25px;
         }
         
         .manual-input-section h3 {
             margin: 0 0 20px 0;
             color: #2c3e50;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            font-size: 16px;
         }
         
         .input-row {
@@ -340,7 +412,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
             align-items: end;
         }
         
-        @media (max-width: 600px) {
+        .copy-from-section {
+            background: #e3f2fd;
+            border: 2px solid #2196f3;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .copy-from-section h4 {
+            margin: 0 0 15px 0;
+            color: #1565c0;
+        }
+        
+        .copy-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+        
+        .copy-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .copy-option:hover {
+            border-color: #2196f3;
+        }
+        
+        .copy-option.selected {
+            border-color: #2196f3;
+            background: #e3f2fd;
+        }
+        
+        .copy-option input {
+            margin: 0;
+        }
+        
+        .copy-flag {
+            font-size: 20px;
+        }
+        
+        .copy-name {
+            flex: 1;
+            font-weight: 500;
+        }
+        
+        .languages-count {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .flag-help {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #856404;
+        }
+        
+        @media (max-width: 768px) {
             .input-row {
                 grid-template-columns: 1fr;
             }
@@ -403,7 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
                         <!-- Quick Presets -->
                         <?php if (!empty($languagePresets)): ?>
                             <div class="presets-section">
-                                <h3>🚀 Quick Select (click to auto-fill)</h3>
+                                <h3>🚀 Quick Select - 50 Most Popular Languages <span class="languages-count"><?php echo count($languagePresets); ?> available</span></h3>
                                 <div class="presets-grid">
                                     <?php foreach ($languagePresets as $code => $preset): ?>
                                         <button type="button" class="preset-btn" 
@@ -429,12 +573,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
                                 <div class="form-group">
                                     <label for="lang_code">Language Code *</label>
                                     <input type="text" id="lang_code" name="lang_code" 
-                                           placeholder="e.g., fr, de, it" 
-                                           pattern="[a-z]{2,3}" 
-                                           maxlength="3"
+                                           placeholder="e.g., fr, de, pt-br" 
+                                           pattern="[a-z]{2,3}(-[a-z]{2})?" 
+                                           maxlength="6"
                                            required
                                            value="<?php echo htmlspecialchars($_POST['lang_code'] ?? ''); ?>">
-                                    <small>2-3 lowercase letters (ISO 639-1)</small>
+                                    <small>2-3 lowercase letters, optionally with region (ISO 639-1)</small>
                                 </div>
                                 
                                 <div class="form-group">
@@ -443,11 +587,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
                                            placeholder="e.g., Français, Deutsch"
                                            required
                                            value="<?php echo htmlspecialchars($_POST['lang_name'] ?? ''); ?>">
-                                    <small>Display name in CMS</small>
+                                    <small>Display name in native language</small>
                                 </div>
                                 
                                 <div class="form-group">
-                                    <label for="lang_flag">Flag Emoji *</label>
+                                    <label for="lang_flag">Flag *</label>
                                     <input type="text" id="lang_flag" name="lang_flag" 
                                            placeholder="🇫🇷"
                                            required
@@ -455,9 +599,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
                                            value="<?php echo htmlspecialchars($_POST['lang_flag'] ?? '🏳️'); ?>">
                                 </div>
                             </div>
+                            
+                            <div class="flag-help">
+                                💡 <strong>Tip:</strong> Use the Quick Select buttons above to auto-fill with correct flag emojis. 
+                                If you enter a text code (like "IT"), the system will automatically convert it to the correct emoji.
+                            </div>
                         </div>
                         
                         <!-- Copy From Section -->
+                        <?php if (!empty($existingLanguages)): ?>
                         <div class="copy-from-section">
                             <h4>📋 Copy Translations From</h4>
                             <p style="color: #1565c0; margin-bottom: 15px; font-size: 14px;">
@@ -466,44 +616,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
                             
                             <div class="copy-options">
                                 <label class="copy-option selected">
-                                    <input type="radio" name="copy_from" value="en" checked>
-                                    <span class="copy-option-flag">🇬🇧</span>
-                                    <div class="copy-option-info">
-                                        <div class="copy-option-name">English (Recommended)</div>
-                                        <div class="copy-option-desc">Copy all translations from English as starting point</div>
-                                    </div>
+                                    <input type="radio" name="copy_from" value="" checked>
+                                    <span class="copy-flag">📄</span>
+                                    <span class="copy-name">Empty (Fresh Start)</span>
                                 </label>
                                 
-                                <?php foreach ($existingLanguages as $code => $lang): 
-                                    if ($code === 'en') continue;
-                                ?>
+                                <?php foreach ($existingLanguages as $code => $lang): ?>
                                     <label class="copy-option">
                                         <input type="radio" name="copy_from" value="<?php echo htmlspecialchars($code); ?>">
-                                        <span class="copy-option-flag"><?php echo htmlspecialchars($lang['flag']); ?></span>
-                                        <div class="copy-option-info">
-                                            <div class="copy-option-name"><?php echo htmlspecialchars($lang['name']); ?></div>
-                                            <div class="copy-option-desc">Copy translations from <?php echo htmlspecialchars($lang['name']); ?></div>
-                                        </div>
+                                        <span class="copy-flag"><?php echo htmlspecialchars($lang['flag']); ?></span>
+                                        <span class="copy-name"><?php echo htmlspecialchars($lang['name']); ?></span>
                                     </label>
                                 <?php endforeach; ?>
-                                
-                                <label class="copy-option">
-                                    <input type="radio" name="copy_from" value="">
-                                    <span class="copy-option-flag">📝</span>
-                                    <div class="copy-option-info">
-                                        <div class="copy-option-name">Start Empty</div>
-                                        <div class="copy-option-desc">Create empty translation file (all fields blank)</div>
-                                    </div>
-                                </label>
                             </div>
                         </div>
+                        <?php endif; ?>
                         
                         <!-- Info Box -->
-                        <div class="info-box info" style="margin-top: 25px;">
+                        <div class="info-box info" style="margin-bottom: 25px;">
                             <div class="info-box-icon">💡</div>
                             <div class="info-box-content">
                                 <strong>What happens next?</strong>
-                                After creating the language, you'll be redirected to the edit page where you can translate all texts. The language will be immediately available to assign to websites.
+                                The language will be immediately available to assign to websites. You'll be redirected to the translation editor where you can add all the text translations.
                             </div>
                         </div>
                         
@@ -550,9 +684,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_language'])) {
             });
         });
         
-        // Lowercase language code
+        // Lowercase language code and allow hyphens for regional variants
         document.getElementById('lang_code').addEventListener('input', function() {
-            this.value = this.value.toLowerCase().replace(/[^a-z]/g, '');
+            this.value = this.value.toLowerCase().replace(/[^a-z-]/g, '');
         });
     </script>
 </body>
