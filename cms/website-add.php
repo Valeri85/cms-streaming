@@ -220,6 +220,7 @@ function sendMasterSportsNotFoundNotification() {
 }
 
 // NEW: Create config PHP file for the website
+// SEO, contact, social are managed in websites.json (single source of truth)
 function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryColor, $language) {
     $configDir = '/var/www/u1852176/data/www/streaming/config/';
     $configFilePath = $configDir . $domain . '.php';
@@ -229,12 +230,7 @@ function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryCo
         return ['error' => 'Config file already exists: ' . $domain . '.php'];
     }
     
-    // Prepare SEO title and description (can be updated later)
-    $seoTitle = $siteName . ' - Live Sports Streaming | Watch Games Online Free';
-    $seoDescription = 'Watch live sports streaming online free. Football, Basketball, Tennis and more. ' . $siteName . ' offers the best live sports streams in HD quality.';
-    $seoKeywords = 'live sports, sports streaming, watch sports online, free sports streams, football streaming, basketball live, ' . $siteName;
-    
-    // Generate PHP config file content
+    // Generate PHP config file content (minimal - SEO is in websites.json)
     $phpContent = "<?php\n\n";
     $phpContent .= "return [\n";
     $phpContent .= "    'site_name' => '" . addslashes($siteName) . "',\n";
@@ -246,24 +242,8 @@ function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryCo
     $phpContent .= "        'secondary_color' => '" . addslashes($secondaryColor) . "',\n";
     $phpContent .= "    ],\n";
     $phpContent .= "    \n";
-    $phpContent .= "    'seo' => [\n";
-    $phpContent .= "        'title' => '" . addslashes($seoTitle) . "',\n";
-    $phpContent .= "        'description' => '" . addslashes($seoDescription) . "',\n";
-    $phpContent .= "        'keywords' => '" . addslashes($seoKeywords) . "',\n";
-    $phpContent .= "    ],\n";
-    $phpContent .= "    \n";
     $phpContent .= "    'language' => '" . addslashes($language) . "',\n";
-    $phpContent .= "    \n";
-    $phpContent .= "    'contact' => [\n";
-    $phpContent .= "        'email' => 'contact@" . addslashes($domain) . "',\n";
-    $phpContent .= "        'support' => 'support@" . addslashes($domain) . "',\n";
-    $phpContent .= "    ],\n";
-    $phpContent .= "    \n";
-    $phpContent .= "    'social' => [\n";
-    $phpContent .= "        'twitter' => 'https://twitter.com/" . addslashes(strtolower(str_replace(' ', '', $siteName))) . "',\n";
-    $phpContent .= "        'facebook' => 'https://facebook.com/" . addslashes(strtolower(str_replace(' ', '', $siteName))) . "',\n";
-    $phpContent .= "    ],\n";
-    $phpContent .= "];";
+    $phpContent .= "];\n";
     
     // Write to file
     if (file_put_contents($configFilePath, $phpContent)) {
