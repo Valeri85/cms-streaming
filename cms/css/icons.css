@@ -1,0 +1,254 @@
+/* ==========================================
+   SPORT ICONS MANAGEMENT PAGE
+   ========================================== */
+
+/* Info Box */
+.info-box {
+	background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+	border: 2px solid #42a5f5;
+	border-radius: 12px;
+	padding: 20px 25px;
+	margin-bottom: 25px;
+}
+
+.info-box h3 {
+	margin: 0 0 10px 0;
+	color: #1565c0;
+	font-size: 18px;
+}
+
+.info-box p {
+	margin: 8px 0;
+	color: #1976d2;
+	font-size: 14px;
+}
+
+.info-box p:last-child {
+	margin-bottom: 0;
+}
+
+/* Stats Grid */
+.stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 20px;
+	margin-bottom: 30px;
+}
+
+.stat-card {
+	background: white;
+	border: 2px solid #e9ecef;
+	border-radius: 12px;
+	padding: 20px;
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+	border-color: #3498db;
+	box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+}
+
+.stat-card.stat-success {
+	border-color: #27ae60;
+	background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+.stat-card.stat-warning {
+	border-color: #f39c12;
+	background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+}
+
+.stat-icon {
+	font-size: 36px;
+}
+
+.stat-info h3 {
+	margin: 0;
+	font-size: 28px;
+	color: #2c3e50;
+}
+
+.stat-info p {
+	margin: 5px 0 0 0;
+	color: #7f8c8d;
+	font-size: 14px;
+}
+
+/* Icons Section */
+.icons-section {
+	background: white;
+	border: 2px solid #e9ecef;
+	border-radius: 12px;
+	padding: 25px;
+}
+
+.icons-section h2 {
+	margin: 0 0 20px 0;
+	color: #2c3e50;
+	font-size: 20px;
+	padding-bottom: 15px;
+	border-bottom: 2px solid #e9ecef;
+}
+
+/* Icons Grid */
+.icons-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+	gap: 20px;
+}
+
+/* Individual Icon Card */
+.icon-card {
+	background: #f8f9fa;
+	border: 2px solid #e9ecef;
+	border-radius: 12px;
+	padding: 20px;
+	text-align: center;
+	transition: all 0.3s ease;
+}
+
+.icon-card:hover {
+	border-color: #3498db;
+	box-shadow: 0 4px 12px rgba(52, 152, 219, 0.15);
+}
+
+.icon-card.has-icon {
+	background: white;
+}
+
+.icon-card.no-icon {
+	background: #fff8e1;
+	border-color: #ffca28;
+}
+
+/* Icon Preview */
+.icon-preview {
+	width: 64px;
+	height: 64px;
+	margin: 0 auto 15px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 12px;
+	overflow: hidden;
+}
+
+.icon-preview img {
+	width: 48px;
+	height: 48px;
+	object-fit: contain;
+}
+
+.placeholder-icon {
+	font-size: 32px;
+	color: white;
+	font-weight: bold;
+}
+
+/* Icon Info */
+.icon-info {
+	margin-bottom: 15px;
+}
+
+.icon-info h4 {
+	margin: 0 0 5px 0;
+	font-size: 14px;
+	color: #2c3e50;
+	font-weight: 600;
+}
+
+.icon-format {
+	display: inline-block;
+	padding: 2px 8px;
+	background: #27ae60;
+	color: white;
+	border-radius: 4px;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+}
+
+.icon-missing {
+	display: inline-block;
+	padding: 2px 8px;
+	background: #e74c3c;
+	color: white;
+	border-radius: 4px;
+	font-size: 10px;
+	font-weight: 700;
+}
+
+/* Icon Actions */
+.icon-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.file-input {
+	display: none;
+}
+
+.btn-upload {
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	border: none;
+	padding: 8px 12px;
+	border-radius: 6px;
+	font-size: 12px;
+	cursor: pointer;
+	transition: all 0.3s;
+}
+
+.btn-upload:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-delete {
+	background: #e74c3c;
+	color: white;
+	border: none;
+	padding: 8px 10px;
+	border-radius: 6px;
+	font-size: 12px;
+	cursor: pointer;
+	transition: all 0.3s;
+}
+
+.btn-delete:hover {
+	background: #c0392b;
+}
+
+.upload-form,
+.delete-form {
+	display: inline-block;
+	margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.icons-grid {
+		grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+		gap: 15px;
+	}
+
+	.icon-card {
+		padding: 15px;
+	}
+
+	.icon-preview {
+		width: 56px;
+		height: 56px;
+	}
+
+	.icon-preview img {
+		width: 40px;
+		height: 40px;
+	}
+}

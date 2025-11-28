@@ -591,3 +591,67 @@
 		align-items: flex-start;
 	}
 }
+
+.icon-preview-row {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	padding: 15px;
+	background: #f8f9fa;
+	border-radius: 8px;
+	margin-bottom: 15px;
+}
+
+.icon-info-text {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.icon-status-ok {
+	color: #27ae60;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.icon-status-missing {
+	color: #e67e22;
+	font-weight: 600;
+	font-size: 14px;
+}
+
+.icon-filename {
+	color: #7f8c8d;
+	font-size: 12px;
+	font-family: monospace;
+}
+
+.icon-upload-link {
+	color: #3498db;
+	font-size: 13px;
+	text-decoration: none;
+	font-weight: 500;
+}
+
+.icon-upload-link:hover {
+	text-decoration: underline;
+}
+
+.add-sport-form {
+	display: flex;
+	gap: 15px;
+	align-items: end;
+}
+
+.add-sport-form-wrapper small {
+	color: #666;
+}
+
+.add-sport-form-wrapper small a {
+	color: #2196f3;
+	text-decoration: none;
+}
+
+.add-sport-form-wrapper small a:hover {
+	text-decoration: underline;
+}

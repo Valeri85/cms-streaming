@@ -363,8 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'language' => $language,
                         'sidebar_content' => '',
                         'status' => $status,
-                        'sports_categories' => $sportsList,
-                        'sports_icons' => []
+                        'sports_categories' => $sportsList
                     ];
                     
                     $websites[] = $newWebsite;
@@ -417,6 +416,9 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                 </a>
                 <a href="languages.php" class="nav-item">
                     <span>🌐</span> Languages
+                </a>
+                <a href="icons.php" class="nav-item">
+                    <span>🖼️</span> Sport Icons
                 </a>
             </nav>
             
