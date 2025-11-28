@@ -141,11 +141,14 @@ $activeCount = count(array_filter($languages, function($lang) {
                 <a href="dashboard.php" class="nav-item">
                     <span>🏠</span> Dashboard
                 </a>
-                <a href="website-add.php" class="nav-item">
+                <a href="website-add.php" class="nav-item active">
                     <span>➕</span> Add Website
                 </a>
-                <a href="languages.php" class="nav-item active">
+                <a href="languages.php" class="nav-item">
                     <span>🌐</span> Languages
+                </a>
+                <a href="icons.php" class="nav-item">
+                    <span>🖼️</span> Sport Icons
                 </a>
             </nav>
             
