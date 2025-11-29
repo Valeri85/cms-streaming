@@ -103,43 +103,43 @@ function getHomeStatusIndicator($pagesSeo) {
     $hasDescription = !empty(trim($seoData['description'] ?? ''));
     
     if ($hasTitle && $hasDescription) {
-        return '🟢';
-    } elseif (!$hasTitle && !$hasDescription) {
-        return '🔴';
-    } else {
-        return '🟠';
+        return '✅';
+    } elseif ($hasTitle || $hasDescription) {
+        return '⚠️';
     }
+    return '❌';
 }
 
-// Calculate status indicator based on SEO only (no icon check - icons are master)
+// Calculate status indicator for sport pages
 function getStatusIndicator($sportName, $pagesSeo) {
     $sportSlug = strtolower(str_replace(' ', '-', $sportName));
-    
     $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
     $hasTitle = !empty(trim($seoData['title'] ?? ''));
     $hasDescription = !empty(trim($seoData['description'] ?? ''));
     
     if ($hasTitle && $hasDescription) {
-        return '🟢';
-    } elseif (!$hasTitle && !$hasDescription) {
-        return '🔴';
-    } else {
-        return '🟠';
+        return '✅';
+    } elseif ($hasTitle || $hasDescription) {
+        return '⚠️';
     }
+    return '❌';
 }
 
 // ==========================================
-// LOAD WEBSITE DATA
+// LOAD DATA
 // ==========================================
 
 $configContent = file_get_contents($configFile);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
 
+// Find the website
 $website = null;
-foreach ($websites as $site) {
+$websiteIndex = null;
+foreach ($websites as $index => $site) {
     if ($site['id'] == $websiteId) {
         $website = $site;
+        $websiteIndex = $index;
         break;
     }
 }
@@ -149,42 +149,26 @@ if (!$website) {
     exit;
 }
 
-$previewDomain = $website['domain'];
+$previewDomain = $website['domain'] ?? '';
 
 // ==========================================
-// HANDLE FORM SUBMISSIONS
+// HANDLE POST REQUESTS
 // ==========================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $websiteIndex = null;
-    foreach ($websites as $key => $site) {
+    $configContent = file_get_contents($configFile);
+    $configData = json_decode($configContent, true);
+    $websites = $configData['websites'] ?? [];
+    
+    foreach ($websites as $index => $site) {
         if ($site['id'] == $websiteId) {
-            $websiteIndex = $key;
+            $websiteIndex = $index;
             break;
         }
     }
     
     if ($websiteIndex !== null) {
-        if (!isset($websites[$websiteIndex]['sports_categories'])) {
-            $websites[$websiteIndex]['sports_categories'] = [];
-        }
-        
-        if (!isset($websites[$websiteIndex]['pages_seo'])) {
-            $websites[$websiteIndex]['pages_seo'] = [];
-        }
-        
-        if (!isset($websites[$websiteIndex]['pages_seo']['sports'])) {
-            $websites[$websiteIndex]['pages_seo']['sports'] = [];
-        }
-        
-        if (!isset($websites[$websiteIndex]['pages_seo']['home'])) {
-            $websites[$websiteIndex]['pages_seo']['home'] = [
-                'title' => '',
-                'description' => ''
-            ];
-        }
-        
-        // UPDATE HOME (SEO only)
+        // UPDATE HOME PAGE
         if (isset($_POST['update_home'])) {
             $websites[$websiteIndex]['pages_seo']['home'] = [
                 'title' => trim($_POST['home_seo_title'] ?? ''),
@@ -494,28 +478,6 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                             <small>Recommended: 150-160 characters</small>
                                         </div>
                                         
-                                        <!-- ICON PREVIEW (read-only) -->
-                                        <div class="form-section-title">🖼️ Icon Preview</div>
-                                        
-                                        <div class="icon-preview-row">
-                                            <div class="icon-preview-box <?php echo $hasIcon ? 'has-icon' : 'no-icon'; ?>">
-                                                <?php if ($hasIcon): ?>
-                                                    <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" alt="<?php echo htmlspecialchars($sport); ?>">
-                                                <?php else: ?>
-                                                    ?
-                                                <?php endif; ?>
-                                            </div>
-                                            <div class="icon-info-text">
-                                                <?php if ($hasIcon): ?>
-                                                    <span class="icon-status-ok">✅ Icon available</span>
-                                                    <span class="icon-filename"><?php echo htmlspecialchars($iconInfo['filename']); ?></span>
-                                                <?php else: ?>
-                                                    <span class="icon-status-missing">⚠️ No icon</span>
-                                                    <a href="icons.php" class="icon-upload-link">Upload in Sport Icons →</a>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                        
                                         <button type="submit" class="btn btn-primary btn-save">💾 Save <?php echo htmlspecialchars($sport); ?></button>
                                     </form>
                                     
@@ -523,17 +485,14 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                     <div class="management-section">
                                         <div class="form-section-title">⚙️ Sport Management</div>
                                         
-                                        <button type="button" class="btn-action" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
-                                            ✏️ Rename Sport
-                                        </button>
-                                    </div>
-                                    
-                                    <!-- DANGER ZONE -->
-                                    <div class="danger-zone">
-                                        <div class="form-section-title">⚠️ Danger Zone</div>
-                                        <button type="button" class="btn-danger-outline" onclick="openDeleteModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
-                                            🗑️ Delete Sport
-                                        </button>
+                                        <div class="management-actions">
+                                            <button type="button" class="btn-rename" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
+                                                ✏️ Rename Sport
+                                            </button>
+                                            <button type="button" class="btn-delete-sport" onclick="openDeleteModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
+                                                🗑️ Delete Sport
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </details>

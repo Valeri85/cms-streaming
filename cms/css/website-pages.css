@@ -59,15 +59,28 @@
 }
 
 .add-sport-form {
-	display: grid;
-	grid-template-columns: 2fr 2fr 1fr;
+	display: flex;
 	gap: 15px;
 	align-items: end;
 }
 
+.add-sport-form-wrapper small {
+	color: #666;
+}
+
+.add-sport-form-wrapper small a {
+	color: #2196f3;
+	text-decoration: none;
+}
+
+.add-sport-form-wrapper small a:hover {
+	text-decoration: underline;
+}
+
 @media (max-width: 768px) {
 	.add-sport-form {
-		grid-template-columns: 1fr;
+		flex-direction: column;
+		align-items: stretch;
 	}
 }
 
@@ -226,92 +239,6 @@
 	margin-top: 0;
 }
 
-/* ==========================================
-   ICON MANAGEMENT ROW
-   ========================================== */
-.icon-management-row {
-	display: flex;
-	align-items: center;
-	gap: 20px;
-	flex-wrap: wrap;
-	margin-bottom: 10px;
-}
-
-.icon-preview-box {
-	width: 64px;
-	height: 64px;
-	min-width: 64px;
-	min-height: 64px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	border-radius: 12px;
-	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-	font-size: 32px;
-	color: white;
-}
-
-.icon-preview-box img {
-	width: 48px;
-	height: 48px;
-	object-fit: contain;
-}
-
-.icon-preview-box.no-icon {
-	font-size: 32px;
-}
-
-.icon-upload-area {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	flex-wrap: wrap;
-}
-
-/* File upload inline style */
-.file-upload-label-inline {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 10px 16px;
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-	color: white;
-	border-radius: 8px;
-	cursor: pointer;
-	font-weight: 600;
-	font-size: 14px;
-	transition: all 0.3s;
-}
-
-.file-upload-label-inline:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.file-name-inline {
-	font-size: 13px;
-	color: #666;
-}
-
-.btn-delete-icon {
-	padding: 10px 16px;
-	background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-	color: white;
-	border: none;
-	border-radius: 8px;
-	cursor: pointer;
-	font-weight: 600;
-	font-size: 14px;
-	transition: all 0.3s;
-}
-
-.btn-delete-icon:hover {
-	background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
-}
-
 /* Save button */
 .btn-save {
 	margin-top: 25px;
@@ -328,99 +255,57 @@
 	border-top: 2px solid #e9ecef;
 }
 
-.btn-action {
-	padding: 12px 24px;
-	background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
-	color: white;
-	border: none;
-	border-radius: 8px;
-	cursor: pointer;
-	font-weight: 600;
-	font-size: 14px;
-	transition: all 0.3s;
-}
-
-.btn-action:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
-}
-
-/* ==========================================
-   DANGER ZONE
-   ========================================== */
-.danger-zone {
-	margin-top: 30px;
-	padding: 20px;
-	background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
-	border: 2px solid #e57373;
-	border-radius: 12px;
-}
-
-.danger-zone .form-section-title {
-	color: #c62828;
-	border-bottom-color: #e57373;
-	margin-top: 0;
-}
-
-.danger-zone p {
-	color: #b71c1c;
-	margin-bottom: 15px;
-	font-size: 14px;
-}
-
-.btn-danger-action {
-	padding: 12px 24px;
-	background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-	color: white;
-	border: none;
-	border-radius: 8px;
-	cursor: pointer;
-	font-weight: 600;
-	font-size: 14px;
-	transition: all 0.3s;
-}
-
-.btn-danger-action:hover {
-	transform: translateY(-2px);
-	box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
-}
-
-/* ==========================================
-   FILE UPLOAD STYLES
-   ========================================== */
-.file-upload-wrapper {
-	position: relative;
-}
-
-.file-upload-label {
+/* Management Actions Row - Rename and Delete side by side */
+.management-actions {
 	display: flex;
+	gap: 15px;
 	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	padding: 12px 20px;
+	flex-wrap: wrap;
+}
+
+/* Rename Button - Blue/Purple gradient (matches primary style) */
+.btn-rename {
+	padding: 12px 24px;
 	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 	color: white;
+	border: none;
 	border-radius: 8px;
 	cursor: pointer;
 	font-weight: 600;
+	font-size: 14px;
 	transition: all 0.3s;
-	border: 2px solid transparent;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
 }
 
-.file-upload-label:hover {
+.btn-rename:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.file-upload-input {
-	display: none;
+/* Delete Button - Red outline style */
+.btn-delete-sport {
+	padding: 12px 24px;
+	background: transparent;
+	color: #e74c3c;
+	border: 2px solid #e74c3c;
+	border-radius: 8px;
+	cursor: pointer;
+	font-weight: 600;
+	font-size: 14px;
+	transition: all 0.3s;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
 }
 
-.file-name-display {
-	font-size: 12px;
-	color: #666;
-	margin-top: 5px;
-	text-align: center;
+.btn-delete-sport:hover {
+	background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+	color: white;
+	border-color: transparent;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
 }
 
 /* ==========================================
@@ -581,77 +466,14 @@
 		font-size: 16px;
 	}
 
-	.icon-management-row {
+	.management-actions {
 		flex-direction: column;
-		align-items: flex-start;
+		align-items: stretch;
 	}
 
-	.icon-upload-area {
-		flex-direction: column;
-		align-items: flex-start;
+	.btn-rename,
+	.btn-delete-sport {
+		width: 100%;
+		justify-content: center;
 	}
-}
-
-.icon-preview-row {
-	display: flex;
-	align-items: center;
-	gap: 15px;
-	padding: 15px;
-	background: #f8f9fa;
-	border-radius: 8px;
-	margin-bottom: 15px;
-}
-
-.icon-info-text {
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
-}
-
-.icon-status-ok {
-	color: #27ae60;
-	font-weight: 600;
-	font-size: 14px;
-}
-
-.icon-status-missing {
-	color: #e67e22;
-	font-weight: 600;
-	font-size: 14px;
-}
-
-.icon-filename {
-	color: #7f8c8d;
-	font-size: 12px;
-	font-family: monospace;
-}
-
-.icon-upload-link {
-	color: #3498db;
-	font-size: 13px;
-	text-decoration: none;
-	font-weight: 500;
-}
-
-.icon-upload-link:hover {
-	text-decoration: underline;
-}
-
-.add-sport-form {
-	display: flex;
-	gap: 15px;
-	align-items: end;
-}
-
-.add-sport-form-wrapper small {
-	color: #666;
-}
-
-.add-sport-form-wrapper small a {
-	color: #2196f3;
-	text-decoration: none;
-}
-
-.add-sport-form-wrapper small a:hover {
-	text-decoration: underline;
 }

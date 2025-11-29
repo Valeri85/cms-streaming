@@ -25,7 +25,6 @@ function restoreScrollPosition() {
 window.addEventListener('DOMContentLoaded', function () {
 	restoreScrollPosition();
 	attachScrollSaveToForms();
-	initFileInputListeners();
 	initDeleteConfirmation();
 	setTimeout(initDragAndDrop, 100);
 	initModalCloseHandlers();
@@ -36,39 +35,6 @@ function attachScrollSaveToForms() {
 	allForms.forEach(form => {
 		form.addEventListener('submit', function (e) {
 			saveScrollPosition();
-		});
-	});
-}
-
-// ==========================================
-// FILE INPUT LISTENERS
-// ==========================================
-
-function initFileInputListeners() {
-	const fileInputs = document.querySelectorAll('.file-upload-input');
-	fileInputs.forEach(input => {
-		input.addEventListener('change', function (e) {
-			const fileName = e.target.files[0]?.name || 'No file chosen';
-
-			const wrapper = e.target.closest('.file-upload-wrapper') || e.target.closest('.icon-upload-area');
-			if (wrapper) {
-				const display = wrapper.querySelector('.file-name-display, .file-name-inline');
-				if (display) {
-					display.textContent = fileName;
-				}
-			}
-
-			const inputId = e.target.id;
-
-			if (inputId === 'home_icon_file') {
-				const display = document.getElementById('homeIconFileName');
-				if (display) display.textContent = fileName;
-			}
-
-			if (inputId === 'new_sport_icon') {
-				const display = document.getElementById('newSportFileName');
-				if (display) display.textContent = fileName;
-			}
 		});
 	});
 }
@@ -100,47 +66,19 @@ function initModalCloseHandlers() {
 }
 
 // ==========================================
-// DELETE ICON MODAL
-// ==========================================
-
-function openDeleteIconModal(sportName, displayName) {
-	const modal = document.getElementById('deleteIconModal');
-	const form = document.getElementById('deleteIconForm');
-	const sportNameInput = document.getElementById('deleteIconSportName');
-	const messageElement = document.getElementById('deleteIconMessage');
-
-	if (!modal || !form) return;
-
-	const isHome = sportName === 'home';
-
-	const deleteInput = form.querySelector('input[name="delete_icon"], input[name="delete_home_icon"]');
-	if (deleteInput) {
-		deleteInput.name = isHome ? 'delete_home_icon' : 'delete_icon';
-	}
-
-	if (sportNameInput) {
-		sportNameInput.value = sportName;
-	}
-
-	if (messageElement) {
-		messageElement.textContent = 'Are you sure you want to delete the icon for "' + displayName + '"?';
-	}
-
-	modal.classList.add('active');
-}
-
-// ==========================================
 // RENAME MODAL
 // ==========================================
 
 function openRenameModal(sportName) {
 	const modal = document.getElementById('renameModal');
-	const oldNameInput = document.getElementById('renameOldSportName');
-	const newNameInput = document.getElementById('renameNewSportName');
+	const oldNameInput = document.getElementById('oldSportName');
+	const currentNameDisplay = document.getElementById('currentNameDisplay');
+	const newNameInput = document.getElementById('newSportNameInput');
 
 	if (!modal) return;
 
 	if (oldNameInput) oldNameInput.value = sportName;
+	if (currentNameDisplay) currentNameDisplay.value = sportName;
 
 	if (newNameInput) {
 		newNameInput.value = sportName;
@@ -234,16 +172,8 @@ function initDragAndDrop() {
 		details.addEventListener('dragover', function (e) {
 			e.preventDefault();
 			e.dataTransfer.dropEffect = 'move';
-			if (this !== draggedElement) {
-				this.classList.add('drag-over');
-			}
-			updateMousePosition(e);
-			return false;
-		});
 
-		details.addEventListener('dragenter', function (e) {
-			e.preventDefault();
-			if (this !== draggedElement) {
+			if (this !== draggedElement && this.getAttribute('data-page-type') !== 'home') {
 				this.classList.add('drag-over');
 			}
 		});
@@ -253,44 +183,35 @@ function initDragAndDrop() {
 		});
 
 		details.addEventListener('drop', function (e) {
-			e.stopPropagation();
 			e.preventDefault();
 			this.classList.remove('drag-over');
 
-			if (draggedElement !== this) {
-				const allDetails = Array.from(accordionsContainer.querySelectorAll('details'));
-				const draggedCard = draggedElement;
-				const targetCard = this;
+			if (draggedElement && this !== draggedElement && this.getAttribute('data-page-type') !== 'home') {
+				const allAccordions = [...accordionsContainer.querySelectorAll('details')];
+				const draggedIndex = allAccordions.indexOf(draggedElement);
+				const targetIndex = allAccordions.indexOf(this);
 
-				const draggedPos = allDetails.indexOf(draggedCard);
-				const targetPos = allDetails.indexOf(targetCard);
-
-				if (draggedPos < targetPos) {
-					targetCard.parentNode.insertBefore(draggedCard, targetCard.nextSibling);
+				if (draggedIndex < targetIndex) {
+					this.parentNode.insertBefore(draggedElement, this.nextSibling);
 				} else {
-					targetCard.parentNode.insertBefore(draggedCard, targetCard);
+					this.parentNode.insertBefore(draggedElement, this);
 				}
 
 				showSaveOrderModal();
 			}
-
-			return false;
 		});
+	});
+
+	document.addEventListener('mousemove', function (e) {
+		mouseY = e.clientY;
 	});
 }
 
-function updateMousePosition(e) {
-	mouseY = e.clientY;
-}
-
 function startAutoScroll() {
-	if (autoScrollInterval) clearInterval(autoScrollInterval);
+	if (autoScrollInterval) return;
 
 	autoScrollInterval = setInterval(() => {
-		if (!draggedElement) {
-			stopAutoScroll();
-			return;
-		}
+		if (!draggedElement) return;
 
 		const windowHeight = window.innerHeight;
 		const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
