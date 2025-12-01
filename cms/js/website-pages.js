@@ -28,6 +28,7 @@ window.addEventListener('DOMContentLoaded', function () {
 	initDeleteConfirmation();
 	setTimeout(initDragAndDrop, 100);
 	initModalCloseHandlers();
+	initLanguageTabs();
 });
 
 function attachScrollSaveToForms() {
@@ -35,6 +36,38 @@ function attachScrollSaveToForms() {
 	allForms.forEach(form => {
 		form.addEventListener('submit', function (e) {
 			saveScrollPosition();
+		});
+	});
+}
+
+// ==========================================
+// LANGUAGE TABS SWITCHING
+// ==========================================
+
+function initLanguageTabs() {
+	// Find all language tab containers
+	const tabContainers = document.querySelectorAll('.lang-tabs-container');
+
+	tabContainers.forEach(container => {
+		const tabs = container.querySelectorAll('.lang-tab');
+		const contents = container.querySelectorAll('.lang-tab-content');
+
+		tabs.forEach(tab => {
+			tab.addEventListener('click', function () {
+				const lang = this.dataset.lang;
+
+				// Update active tab
+				tabs.forEach(t => t.classList.remove('active'));
+				this.classList.add('active');
+
+				// Update active content
+				contents.forEach(content => {
+					content.classList.remove('active');
+					if (content.dataset.lang === lang) {
+						content.classList.add('active');
+					}
+				});
+			});
 		});
 	});
 }
