@@ -18,7 +18,8 @@ if (!$websiteId) {
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 $masterIconsDir = '/var/www/u1852176/data/www/streaming/shared/icons/sports/';
 $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
-$flagsDir = '/shared/icons/flags/';
+$flagsDir = '/var/www/u1852176/data/www/streaming/shared/icons/flags/';
+$flagsUrlPath = '/shared/icons/flags/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
@@ -74,13 +75,13 @@ function sendSlackNotification($sportName) {
     }
     
     $message = [
-        'text' => "🚨 *New Sport Category Added*",
+        'text' => "*New Sport Category Added*",
         'blocks' => [
             [
                 'type' => 'section',
                 'text' => [
                     'type' => 'mrkdwn',
-                    'text' => "*New Sport Category:* " . $sportName . "\n\n⚠️ Please add SEO for new sport page in CMS."
+                    'text' => "*New Sport Category:* " . $sportName . "\n\nPlease add SEO for new sport page in CMS."
                 ]
             ]
         ]
@@ -98,33 +99,110 @@ function sendSlackNotification($sportName) {
     return $result;
 }
 
-// Calculate status indicator for Home page (SEO only - no icon check)
-function getHomeStatusIndicator($pagesSeo) {
+// ==========================================
+// SEO STATUS FUNCTIONS - Returns 'green', 'orange', or 'red'
+// ==========================================
+
+// Calculate status for Home page (English)
+function getHomeStatus($pagesSeo) {
     $seoData = $pagesSeo['home'] ?? [];
     $hasTitle = !empty(trim($seoData['title'] ?? ''));
     $hasDescription = !empty(trim($seoData['description'] ?? ''));
     
     if ($hasTitle && $hasDescription) {
-        return '✅';
+        return 'green';
     } elseif ($hasTitle || $hasDescription) {
-        return '⚠️';
+        return 'orange';
     }
-    return '❌';
+    return 'red';
 }
 
-// Calculate status indicator for sport pages
-function getStatusIndicator($sportName, $pagesSeo) {
+// Calculate status for sport page (English)
+function getSportStatus($sportName, $pagesSeo) {
     $sportSlug = strtolower(str_replace(' ', '-', $sportName));
     $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
     $hasTitle = !empty(trim($seoData['title'] ?? ''));
     $hasDescription = !empty(trim($seoData['description'] ?? ''));
     
     if ($hasTitle && $hasDescription) {
-        return '✅';
+        return 'green';
     } elseif ($hasTitle || $hasDescription) {
-        return '⚠️';
+        return 'orange';
     }
-    return '❌';
+    return 'red';
+}
+
+// Calculate status for language-specific SEO
+function getLanguageSeoStatus($langCode, $domain, $pageType, $sportSlug, $langDir, $pagesSeo) {
+    // For English, check websites.json
+    if ($langCode === 'en') {
+        if ($pageType === 'home') {
+            return getHomeStatus($pagesSeo);
+        } else {
+            $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
+            $hasTitle = !empty(trim($seoData['title'] ?? ''));
+            $hasDescription = !empty(trim($seoData['description'] ?? ''));
+            
+            if ($hasTitle && $hasDescription) return 'green';
+            if ($hasTitle || $hasDescription) return 'orange';
+            return 'red';
+        }
+    }
+    
+    // For other languages, check language file
+    $langFile = $langDir . $langCode . '.json';
+    if (!file_exists($langFile)) {
+        return 'red';
+    }
+    
+    $langData = json_decode(file_get_contents($langFile), true);
+    if (!$langData || !isset($langData['seo'])) {
+        return 'red';
+    }
+    
+    // Normalize domain
+    $normalizedDomain = strtolower(str_replace('www.', '', trim($domain)));
+    
+    // Find domain SEO data
+    $seoData = null;
+    foreach ($langData['seo'] as $key => $value) {
+        $normalizedKey = strtolower(str_replace('www.', '', trim($key)));
+        if ($normalizedKey === $normalizedDomain) {
+            $seoData = $value;
+            break;
+        }
+    }
+    
+    if (!$seoData) {
+        return 'red';
+    }
+    
+    // Check SEO fields based on page type
+    if ($pageType === 'home') {
+        $title = $seoData['home']['title'] ?? '';
+        $description = $seoData['home']['description'] ?? '';
+    } elseif ($pageType === 'sport' && $sportSlug) {
+        $title = '';
+        $description = '';
+        if (isset($seoData['sports'])) {
+            foreach ($seoData['sports'] as $sKey => $sValue) {
+                if (strtolower($sKey) === strtolower($sportSlug)) {
+                    $title = $sValue['title'] ?? '';
+                    $description = $sValue['description'] ?? '';
+                    break;
+                }
+            }
+        }
+    } else {
+        return 'red';
+    }
+    
+    $hasTitle = !empty(trim($title));
+    $hasDescription = !empty(trim($description));
+    
+    if ($hasTitle && $hasDescription) return 'green';
+    if ($hasTitle || $hasDescription) return 'orange';
+    return 'red';
 }
 
 // ==========================================
@@ -145,7 +223,6 @@ function loadActiveLanguages($langDir) {
                 $languages[$code] = [
                     'code' => $code,
                     'name' => $data['language_info']['name'] ?? $code,
-                    'flag' => $data['language_info']['flag'] ?? '🌐',
                     'flag_code' => $data['language_info']['flag_code'] ?? strtoupper($code)
                 ];
             }
@@ -351,7 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'title' => trim($_POST['home_seo_title'] ?? ''),
                 'description' => trim($_POST['home_seo_description'] ?? '')
             ];
-            $success = "✅ Home page SEO updated!";
+            $success = "Home page SEO updated!";
         }
         
         // UPDATE HOME PAGE SEO FOR SPECIFIC LANGUAGE
@@ -363,9 +440,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($langCode && $langCode !== 'en') {
                 $result = saveLanguageSeoData($langCode, $previewDomain, 'home', null, $title, $description, $langDir);
                 if (isset($result['success'])) {
-                    $success = "✅ Home page SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
+                    $success = "Home page SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
                 } else {
-                    $error = "❌ " . $result['error'];
+                    $error = $result['error'];
                 }
             }
         }
@@ -377,13 +454,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($newSport) {
                 if (!in_array($newSport, $websites[$websiteIndex]['sports_categories'])) {
                     $websites[$websiteIndex]['sports_categories'][] = $newSport;
-                    $success = "✅ Sport category '{$newSport}' added!";
+                    $success = "Sport category '{$newSport}' added!";
                     sendSlackNotification($newSport);
                 } else {
-                    $error = "❌ Sport category '{$newSport}' already exists!";
+                    $error = "Sport category '{$newSport}' already exists!";
                 }
             } else {
-                $error = "❌ Please enter a sport name";
+                $error = "Please enter a sport name";
             }
         }
         
@@ -397,7 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'description' => trim($_POST['seo_description'] ?? '')
             ];
             
-            $success = "✅ '{$sportName}' SEO updated!";
+            $success = "'{$sportName}' SEO updated!";
         }
         
         // UPDATE SPORT SEO FOR SPECIFIC LANGUAGE
@@ -411,9 +488,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($langCode && $langCode !== 'en' && $sportSlug) {
                 $result = saveLanguageSeoData($langCode, $previewDomain, 'sport', $sportSlug, $title, $description, $langDir);
                 if (isset($result['success'])) {
-                    $success = "✅ '{$sportName}' SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
+                    $success = "'{$sportName}' SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
                 } else {
-                    $error = "❌ " . $result['error'];
+                    $error = $result['error'];
                 }
             }
         }
@@ -441,62 +518,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             unset($websites[$websiteIndex]['pages_seo']['sports'][$oldSlug]);
                         }
                         
-                        $success = "✅ Sport renamed: '{$oldName}' → '{$newName}'";
+                        $success = "Sport renamed: '{$oldName}' to '{$newName}'";
                     } else {
-                        $error = "❌ Sport category '{$newName}' already exists!";
+                        $error = "Sport category '{$newName}' already exists!";
                     }
                 } else {
-                    $error = "❌ Sport category '{$oldName}' not found!";
+                    $error = "Sport category '{$oldName}' not found!";
                 }
-            } else {
-                $error = "❌ Please enter a valid sport name";
             }
         }
         
         // DELETE SPORT
         if (isset($_POST['delete_sport'])) {
-            $sportToDelete = $_POST['sport_name'] ?? '';
-            $confirmName = $_POST['confirm_sport_name'] ?? '';
+            $sportToDelete = $_POST['sport_to_delete'] ?? '';
             
-            if ($sportToDelete === $confirmName) {
+            if ($sportToDelete) {
                 $sports = $websites[$websiteIndex]['sports_categories'];
-                $sports = array_filter($sports, function($sport) use ($sportToDelete) {
-                    return $sport !== $sportToDelete;
-                });
-                $websites[$websiteIndex]['sports_categories'] = array_values($sports);
+                $index = array_search($sportToDelete, $sports);
                 
-                $sportSlug = strtolower(str_replace(' ', '-', $sportToDelete));
-                if (isset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug])) {
-                    unset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug]);
+                if ($index !== false) {
+                    unset($sports[$index]);
+                    $websites[$websiteIndex]['sports_categories'] = array_values($sports);
+                    
+                    // Also remove SEO data
+                    $sportSlug = strtolower(str_replace(' ', '-', $sportToDelete));
+                    if (isset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug])) {
+                        unset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug]);
+                    }
+                    
+                    $success = "Sport '{$sportToDelete}' deleted!";
                 }
-                
-                $success = "✅ Sport category '{$sportToDelete}' deleted";
-            } else {
-                $error = "❌ Sport name doesn't match. Deletion cancelled.";
             }
         }
         
         // REORDER SPORTS
         if (isset($_POST['reorder_sports'])) {
             $newOrder = json_decode($_POST['sports_order'] ?? '[]', true);
-            
-            if (is_array($newOrder) && count($newOrder) > 0) {
+            if (!empty($newOrder)) {
                 $websites[$websiteIndex]['sports_categories'] = $newOrder;
-                $success = "✅ Sports order updated!";
-            } else {
-                $error = "❌ Invalid sports order data";
+                $success = "Sports order updated!";
             }
         }
         
-        // Save changes to websites.json (not for language-specific SEO saves)
-        if (($success || $error) && !isset($_POST['update_home_lang']) && !isset($_POST['update_sport_lang'])) {
-            $configData['websites'] = $websites;
-            $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            
-            if (!file_put_contents($configFile, $jsonContent)) {
-                $error = '❌ Failed to save changes. Check permissions: chmod 644 ' . $configFile;
-                $success = '';
-            } else {
+        // Save configuration
+        $configData['websites'] = $websites;
+        $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        
+        if (file_put_contents($configFile, $jsonContent)) {
+            // Refresh data after save
+            if (empty($error)) {
                 $configContent = file_get_contents($configFile);
                 $configData = json_decode($configContent, true);
                 $websites = $configData['websites'] ?? [];
@@ -513,7 +583,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $sports = $website['sports_categories'] ?? [];
 $pagesSeo = $website['pages_seo'] ?? [];
-$homeStatus = getHomeStatusIndicator($pagesSeo);
+$homeStatus = getHomeStatus($pagesSeo);
 
 // Get home icon from master
 $homeIconInfo = getMasterIcon('home', $masterIconsDir);
@@ -531,21 +601,21 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
     <div class="cms-layout">
         <aside class="cms-sidebar">
             <div class="cms-logo">
-                <h2>🎯 CMS</h2>
+                <h2>CMS</h2>
             </div>
             
             <nav class="cms-nav">
                 <a href="dashboard.php" class="nav-item">
-                    <span>🏠</span> Dashboard
+                    <span>Dashboard</span>
                 </a>
                 <a href="website-add.php" class="nav-item">
-                    <span>➕</span> Add Website
+                    <span>Add Website</span>
                 </a>
                 <a href="languages.php" class="nav-item">
-                    <span>🌐</span> Languages
+                    <span>Languages</span>
                 </a>
                 <a href="icons.php" class="nav-item">
-                    <span>🖼️</span> Sport Icons
+                    <span>Sport Icons</span>
                 </a>
             </nav>
             
@@ -557,7 +627,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
         <main class="cms-main">
             <header class="cms-header">
                 <h1>Manage Pages: <?php echo htmlspecialchars($website['site_name']); ?></h1>
-                <a href="dashboard.php" class="btn">← Back to Dashboard</a>
+                <a href="dashboard.php" class="btn">Back to Dashboard</a>
             </header>
             
             <div class="cms-content">
@@ -574,12 +644,12 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                     <div class="pages-accordion">
                         <details class="home-page-card" data-page-type="home">
                             <summary>
-                                <span class="status-indicator"><?php echo $homeStatus; ?></span>
+                                <span class="status-dot <?php echo $homeStatus; ?>"></span>
                                 <span class="header-icon-small <?php echo $homeIconInfo['exists'] ? 'has-icon' : 'no-icon'; ?>">
                                     <?php if ($homeIconInfo['exists']): ?>
                                         <img src="/shared/icons/sports/<?php echo htmlspecialchars($homeIconInfo['filename']); ?>?v=<?php echo time(); ?>" alt="Home" width="18" height="18">
                                     <?php else: ?>
-                                        🏠
+                                        H
                                     <?php endif; ?>
                                 </span>
                                 <span class="accordion-title">
@@ -592,18 +662,18 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                 <!-- LANGUAGE TABS -->
                                 <div class="lang-tabs-container" data-page-type="home">
                                     <div class="lang-tabs">
-                                        <?php foreach ($activeLanguages as $langCode => $langInfo): ?>
+                                        <?php foreach ($activeLanguages as $langCode => $langInfo): 
+                                            $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'home', null, $langDir, $pagesSeo);
+                                        ?>
                                             <button type="button" 
-                                                    class="lang-tab <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
+                                                    class="lang-tab seo-<?php echo $langSeoStatus; ?> <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
                                                     data-lang="<?php echo htmlspecialchars($langCode); ?>"
                                                     title="<?php echo htmlspecialchars($langInfo['name']); ?>">
-                                                <img src="<?php echo $flagsDir . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
+                                                <img src="<?php echo $flagsUrlPath . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
                                                      alt="<?php echo htmlspecialchars($langInfo['name']); ?>" 
                                                      class="lang-tab-flag"
-                                                     width="24" 
-                                                     height="18"
-                                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-                                                <span class="lang-tab-emoji" style="display:none;"><?php echo htmlspecialchars($langInfo['flag']); ?></span>
+                                                     width="28" 
+                                                     height="20">
                                                 <span class="lang-tab-code"><?php echo strtoupper(htmlspecialchars($langCode)); ?></span>
                                             </button>
                                         <?php endforeach; ?>
@@ -626,7 +696,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                 <?php endif; ?>
                                                 
                                                 <!-- SEO SECTION -->
-                                                <div class="form-section-title">🔍 SEO Settings (<?php echo htmlspecialchars($langInfo['name']); ?>)</div>
+                                                <div class="form-section-title">SEO Settings (<?php echo htmlspecialchars($langInfo['name']); ?>)</div>
                                                 
                                                 <div class="form-group">
                                                     <label for="home_seo_title_<?php echo $langCode; ?>">SEO Title</label>
@@ -647,7 +717,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                     <small>Recommended: 150-160 characters</small>
                                                 </div>
                                                 
-                                                <button type="submit" class="btn btn-primary btn-save">💾 Save Home Page (<?php echo strtoupper($langCode); ?>)</button>
+                                                <button type="submit" class="btn btn-primary btn-save">Save Home Page (<?php echo strtoupper($langCode); ?>)</button>
                                             </form>
                                         </div>
                                     <?php endforeach; ?>
@@ -659,7 +729,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                 
                 <!-- ADD NEW SPORT SECTION -->
                 <div class="add-sport-card">
-                    <h3>➕ Add New Sport Category</h3>
+                    <h3>Add New Sport Category</h3>
                     <form method="POST" class="add-sport-form-wrapper">
                         <div class="add-sport-form">
                             <div class="form-group" style="margin-bottom: 0;">
@@ -669,7 +739,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                             
                             <button type="submit" name="add_sport" class="btn btn-primary" style="height: fit-content;">Add Sport</button>
                         </div>
-                        <small style="display: block; margin-top: 10px; color: #666;">💡 Icons are managed globally in <a href="icons.php" style="color: #2196f3;">Sport Icons</a></small>
+                        <small style="display: block; margin-top: 10px; color: #666;">Icons are managed globally in <a href="icons.php" style="color: #2196f3;">Sport Icons</a></small>
                     </form>
                 </div>
                 
@@ -680,7 +750,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                     </div>
                     
                     <div class="sports-count-info">
-                        <span>💡 Drag accordions to reorder (affects left menu on website)</span>
+                        <span>Drag accordions to reorder (affects left menu on website)</span>
                     </div>
                     
                     <div class="pages-accordion" id="pagesAccordions">
@@ -696,12 +766,12 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                             $seoTitle = $seoData['title'] ?? '';
                             $seoDescription = $seoData['description'] ?? '';
                             
-                            $status = getStatusIndicator($sport, $pagesSeo);
+                            $status = getSportStatus($sport, $pagesSeo);
                         ?>
                             <details data-sport-name="<?php echo htmlspecialchars($sport); ?>">
                                 <summary>
-                                    <span class="drag-handle" title="Drag to reorder">⋮⋮</span>
-                                    <span class="status-indicator"><?php echo $status; ?></span>
+                                    <span class="drag-handle" title="Drag to reorder">||</span>
+                                    <span class="status-dot <?php echo $status; ?>"></span>
                                     <span class="header-icon-small <?php echo $hasIcon ? 'has-icon' : 'no-icon'; ?>">
                                         <?php if ($hasIcon): ?>
                                             <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" alt="<?php echo htmlspecialchars($sport); ?>" width="18" height="18">
@@ -716,18 +786,18 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                     <!-- LANGUAGE TABS -->
                                     <div class="lang-tabs-container" data-page-type="sport" data-sport="<?php echo htmlspecialchars($sport); ?>">
                                         <div class="lang-tabs">
-                                            <?php foreach ($activeLanguages as $langCode => $langInfo): ?>
+                                            <?php foreach ($activeLanguages as $langCode => $langInfo): 
+                                                $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'sport', $sportSlug, $langDir, $pagesSeo);
+                                            ?>
                                                 <button type="button" 
-                                                        class="lang-tab <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
+                                                        class="lang-tab seo-<?php echo $langSeoStatus; ?> <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
                                                         data-lang="<?php echo htmlspecialchars($langCode); ?>"
                                                         title="<?php echo htmlspecialchars($langInfo['name']); ?>">
-                                                    <img src="<?php echo $flagsDir . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
+                                                    <img src="<?php echo $flagsUrlPath . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
                                                          alt="<?php echo htmlspecialchars($langInfo['name']); ?>" 
                                                          class="lang-tab-flag"
-                                                         width="24" 
-                                                         height="18"
-                                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-                                                    <span class="lang-tab-emoji" style="display:none;"><?php echo htmlspecialchars($langInfo['flag']); ?></span>
+                                                         width="28" 
+                                                         height="20">
                                                     <span class="lang-tab-code"><?php echo strtoupper(htmlspecialchars($langCode)); ?></span>
                                                 </button>
                                             <?php endforeach; ?>
@@ -751,7 +821,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                     <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
                                                     
                                                     <!-- SEO SECTION -->
-                                                    <div class="form-section-title">🔍 SEO Settings (<?php echo htmlspecialchars($langInfo['name']); ?>)</div>
+                                                    <div class="form-section-title">SEO Settings (<?php echo htmlspecialchars($langInfo['name']); ?>)</div>
                                                     
                                                     <div class="form-group">
                                                         <label for="seo_title_<?php echo $sportSlug; ?>_<?php echo $langCode; ?>">SEO Title</label>
@@ -772,7 +842,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                         <small>Recommended: 150-160 characters</small>
                                                     </div>
                                                     
-                                                    <button type="submit" class="btn btn-primary btn-save">💾 Save <?php echo htmlspecialchars($sport); ?> (<?php echo strtoupper($langCode); ?>)</button>
+                                                    <button type="submit" class="btn btn-primary btn-save">Save <?php echo htmlspecialchars($sport); ?> (<?php echo strtoupper($langCode); ?>)</button>
                                                 </form>
                                             </div>
                                         <?php endforeach; ?>
@@ -780,14 +850,14 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                     
                                     <!-- SPORT MANAGEMENT SECTION -->
                                     <div class="management-section">
-                                        <div class="form-section-title">⚙️ Sport Management</div>
+                                        <div class="form-section-title">Sport Management</div>
                                         
                                         <div class="management-actions">
                                             <button type="button" class="btn-rename" onclick="openRenameModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
-                                                ✏️ Rename Sport
+                                                Rename Sport
                                             </button>
                                             <button type="button" class="btn-delete-sport" onclick="openDeleteModal('<?php echo htmlspecialchars($sport, ENT_QUOTES); ?>')">
-                                                🗑️ Delete Sport
+                                                Delete Sport
                                             </button>
                                         </div>
                                     </div>
@@ -800,26 +870,16 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
         </main>
     </div>
     
-    <!-- HIDDEN FORM FOR REORDER -->
-    <form id="reorderForm" method="POST" style="display: none;">
-        <input type="hidden" name="reorder_sports" value="1">
-        <input type="hidden" name="sports_order" id="sportsOrderInput">
-    </form>
-    
     <!-- RENAME MODAL -->
     <div class="modal" id="renameModal">
-        <div class="modal-content">
-            <h3>✏️ Rename Sport</h3>
-            <form method="POST">
+        <div class="modal-content modal-small">
+            <h3>Rename Sport</h3>
+            <p>Enter new name for: <strong id="currentSportName"></strong></p>
+            <form method="POST" id="renameForm">
                 <input type="hidden" name="rename_sport" value="1">
                 <input type="hidden" name="old_sport_name" id="oldSportName">
                 <div class="form-group">
-                    <label>Current Name</label>
-                    <input type="text" id="currentNameDisplay" disabled>
-                </div>
-                <div class="form-group">
-                    <label for="newSportNameInput">New Name</label>
-                    <input type="text" id="newSportNameInput" name="new_sport_name" required>
+                    <input type="text" name="new_sport_name" id="newSportName" placeholder="New sport name" required>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn btn-outline" onclick="closeModal('renameModal')">Cancel</button>
@@ -831,37 +891,33 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
     
     <!-- DELETE MODAL -->
     <div class="modal" id="deleteModal">
-        <div class="modal-content">
-            <div class="modal-icon">🗑️</div>
-            <h3>Delete Sport Category</h3>
-            <p>This will permanently delete the sport category and all SEO data.</p>
-            <p class="delete-warning">To confirm, type the sport name: <strong id="deleteSportNameDisplay"></strong></p>
+        <div class="modal-content modal-small">
+            <div class="modal-icon">!</div>
+            <h3>Delete Sport</h3>
+            <p>Are you sure you want to delete <strong id="deleteSportName"></strong>?</p>
+            <div class="delete-warning">
+                <strong>Warning:</strong> This will remove all SEO data for this sport. Type the sport name to confirm:
+            </div>
             <form method="POST" id="deleteForm">
                 <input type="hidden" name="delete_sport" value="1">
-                <input type="hidden" name="sport_name" id="deleteSportName">
+                <input type="hidden" name="sport_to_delete" id="sportToDelete">
+                <input type="hidden" id="expectedSportName">
                 <div class="form-group">
-                    <input type="text" id="confirmSportNameInput" name="confirm_sport_name" placeholder="Type sport name to confirm" required autocomplete="off">
+                    <input type="text" id="confirmSportNameInput" placeholder="Type sport name to confirm" autocomplete="off">
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn btn-outline" onclick="closeModal('deleteModal')">Cancel</button>
-                    <button type="submit" class="btn btn-danger" id="confirmDeleteBtn" disabled>Delete Sport</button>
+                    <button type="submit" class="btn btn-danger" id="confirmDeleteBtn" disabled>Delete</button>
                 </div>
             </form>
         </div>
     </div>
     
-    <!-- SAVE ORDER MODAL -->
-    <div class="modal" id="saveOrderModal">
-        <div class="modal-content modal-small">
-            <div class="modal-icon">💾</div>
-            <h3>Save Changes?</h3>
-            <p>Do you want to save the new sport order?</p>
-            <div class="modal-buttons">
-                <button type="button" class="btn btn-outline" onclick="cancelOrderChange()">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="confirmSaveOrder()">Yes, Save Order</button>
-            </div>
-        </div>
-    </div>
+    <!-- REORDER FORM (hidden) -->
+    <form method="POST" id="reorderForm" style="display: none;">
+        <input type="hidden" name="reorder_sports" value="1">
+        <input type="hidden" name="sports_order" id="sportsOrderInput">
+    </form>
     
     <script src="js/website-pages.js"></script>
 </body>
