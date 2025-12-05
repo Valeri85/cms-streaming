@@ -501,6 +501,9 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                 <a href="languages.php" class="nav-item">
                     <span>🌐</span> Languages
                 </a>
+                <a href="icons.php" class="nav-item">
+                    <span>🖼️</span> Sport Icons
+                </a>
             </nav>
             
             <div class="cms-user">

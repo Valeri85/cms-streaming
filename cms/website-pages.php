@@ -601,21 +601,21 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
     <div class="cms-layout">
         <aside class="cms-sidebar">
             <div class="cms-logo">
-                <h2>CMS</h2>
+                <h2>🎯 CMS</h2>
             </div>
             
             <nav class="cms-nav">
                 <a href="dashboard.php" class="nav-item">
-                    <span>Dashboard</span>
+                    <span>🏠</span> Dashboard
                 </a>
                 <a href="website-add.php" class="nav-item">
-                    <span>Add Website</span>
+                    <span>➕</span> Add Website
                 </a>
                 <a href="languages.php" class="nav-item">
-                    <span>Languages</span>
+                    <span>🌐</span> Languages
                 </a>
                 <a href="icons.php" class="nav-item">
-                    <span>Sport Icons</span>
+                    <span>🖼️</span> Sport Icons
                 </a>
             </nav>
             
