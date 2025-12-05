@@ -187,70 +187,59 @@ function sendMasterSportsNotFoundNotification() {
                 'type' => 'section',
                 'text' => [
                     'type' => 'mrkdwn',
-                    'text' => "*File Location:*\n`/var/www/u1852176/data/www/streaming/config/master-sports.json`"
+                    'text' => "*Expected location:*\n`/var/www/u1852176/data/www/streaming/config/master-sports.json`"
                 ]
             ],
             [
                 'type' => 'section',
                 'text' => [
                     'type' => 'mrkdwn',
-                    'text' => "*Impact:*\n• New website created with 0 sports\n• Website will have empty sports menu\n• User experience will be broken"
-                ]
-            ],
-            [
-                'type' => 'section',
-                'text' => [
-                    'type' => 'mrkdwn',
-                    'text' => "*Action Required:*\n1. Check if file exists\n2. Verify JSON format is valid\n3. Ensure file permissions are correct (644)\n4. Re-add sports to new website via CMS"
+                    'text' => "*Action Required:*\nPlease create or restore the `master-sports.json` file."
                 ]
             ]
         ]
     ];
     
     $ch = curl_init($slackWebhookUrl);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    
-    $result = curl_exec($ch);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_exec($ch);
     curl_close($ch);
     
-    return $result;
+    return true;
 }
 
-// NEW: Create config PHP file for the website
-// SEO, contact, social are managed in websites.json (single source of truth)
+// Create config PHP file for new website
 function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryColor, $language) {
-    $configDir = '/var/www/u1852176/data/www/streaming/config/';
-    $configFilePath = $configDir . $domain . '.php';
+    $configDir = '/var/www/u1852176/data/www/streaming/config/websites/';
     
-    // Check if file already exists
-    if (file_exists($configFilePath)) {
-        return ['error' => 'Config file already exists: ' . $domain . '.php'];
+    if (!file_exists($configDir)) {
+        mkdir($configDir, 0755, true);
     }
     
-    // Generate PHP config file content (minimal - SEO is in websites.json)
-    $phpContent = "<?php\n\n";
-    $phpContent .= "return [\n";
-    $phpContent .= "    'site_name' => '" . addslashes($siteName) . "',\n";
-    $phpContent .= "    \n";
-    $phpContent .= "    'logo' => '" . addslashes($logo) . "',\n";
-    $phpContent .= "    \n";
-    $phpContent .= "    'theme' => [\n";
-    $phpContent .= "        'primary_color' => '" . addslashes($primaryColor) . "',\n";
-    $phpContent .= "        'secondary_color' => '" . addslashes($secondaryColor) . "',\n";
-    $phpContent .= "    ],\n";
-    $phpContent .= "    \n";
-    $phpContent .= "    'language' => '" . addslashes($language) . "',\n";
-    $phpContent .= "];\n";
+    $filename = strtolower(str_replace('.', '-', $domain)) . '.php';
+    $filepath = $configDir . $filename;
     
-    // Write to file
-    if (file_put_contents($configFilePath, $phpContent)) {
-        chmod($configFilePath, 0644);
-        return ['success' => true, 'filename' => $domain . '.php'];
+    $configContent = "<?php\n";
+    $configContent .= "// Auto-generated config for {$siteName}\n";
+    $configContent .= "// Domain: {$domain}\n";
+    $configContent .= "// Created: " . date('Y-m-d H:i:s') . "\n\n";
+    $configContent .= "\$siteConfig = [\n";
+    $configContent .= "    'domain' => '" . addslashes($domain) . "',\n";
+    $configContent .= "    'site_name' => '" . addslashes($siteName) . "',\n";
+    $configContent .= "    'logo' => '" . addslashes($logo) . "',\n";
+    $configContent .= "    'primary_color' => '" . addslashes($primaryColor) . "',\n";
+    $configContent .= "    'secondary_color' => '" . addslashes($secondaryColor) . "',\n";
+    $configContent .= "    'language' => '" . addslashes($language) . "',\n";
+    $configContent .= "];\n";
+    
+    if (file_put_contents($filepath, $configContent)) {
+        return ['success' => true, 'filename' => $filename];
     } else {
-        return ['error' => 'Failed to create config file. Check permissions: chmod 755 ' . $configDir];
+        return ['error' => 'Failed to create config file. Check permissions for: ' . $configDir];
     }
 }
 
@@ -320,6 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($domainExists) {
             $error = 'Domain already exists!';
         } else {
+            // Handle logo upload
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                 $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
@@ -330,6 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
+                // Generate new ID
                 $maxId = 0;
                 foreach ($websites as $website) {
                     if ($website['id'] > $maxId) {
@@ -363,7 +354,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'language' => $language,
                         'sidebar_content' => '',
                         'status' => $status,
-                        'sports_categories' => $sportsList
+                        'sports_categories' => $sportsList,
+                        // NEW: Start with English only - add more languages as you translate
+                        'enabled_languages' => ['en']
                     ];
                     
                     $websites[] = $newWebsite;
@@ -373,7 +366,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     if (file_put_contents($configFile, $jsonContent)) {
                         $sportsCount = count($sportsList);
-                        $success = "Website added successfully with {$sportsCount} sport categories! Config file created: {$configFileResult['filename']}";
+                        $success = "Website added successfully with {$sportsCount} sport categories! Config file created: {$configFileResult['filename']}. Languages: English only (add more in Settings after translating).";
                         $_POST = [];
                     } else {
                         $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
@@ -478,7 +471,7 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                             </div>
                             
                             <div class="form-group">
-                                <label for="language">Language</label>
+                                <label for="language">Default Language</label>
                                 <select id="language" name="language">
                                     <?php foreach ($availableLanguages as $code => $lang): ?>
                                         <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($code === 'en') ? 'selected' : ''; ?>>
@@ -529,6 +522,7 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                             <li style="padding: 8px 0;">✅ Create config file: <code><?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?>.php</code></li>
                             <li style="padding: 8px 0;">✅ Generate canonical URL: <code>https://www.<?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?></code></li>
                             <li style="padding: 8px 0;">✅ Set up basic SEO structure</li>
+                            <li style="padding: 8px 0;">🌐 <strong>Enable only English</strong> - Add more languages in Settings after translating</li>
                         </ul>
                         <p style="margin-top: 15px; color: #2e7d32; font-weight: 600;">⚠️ After creation, remember to configure SEO for each sport page!</p>
                     </div>
