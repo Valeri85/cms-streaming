@@ -17,6 +17,7 @@ if (!$websiteId) {
 
 $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
 $uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
+$faviconDir = '/var/www/u1852176/data/www/streaming/images/favicons/';
 
 if (!file_exists($configFile)) {
     die("Configuration file not found at: " . $configFile);
@@ -24,6 +25,10 @@ if (!file_exists($configFile)) {
 
 if (!file_exists($uploadDir)) {
     mkdir($uploadDir, 0755, true);
+}
+
+if (!file_exists($faviconDir)) {
+    mkdir($faviconDir, 0755, true);
 }
 
 // NEW FUNCTION: Generate canonical URL
@@ -138,6 +143,120 @@ function handleLogoUpload($file, $uploadDir, $siteName) {
     return ['success' => true, 'filename' => $filename];
 }
 
+// ==========================================
+// FAVICON GENERATION FUNCTION
+// ==========================================
+function generateFavicons($file, $faviconDir, $websiteId) {
+    $allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
+    
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['error' => 'No file uploaded'];
+    }
+    
+    // Check GD library
+    if (!extension_loaded('gd')) {
+        return ['error' => 'GD extension not available. Cannot generate favicons.'];
+    }
+    
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['error' => 'Invalid file type. Only PNG, JPG, WEBP allowed for favicon'];
+    }
+    
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        return ['error' => 'Invalid file extension'];
+    }
+    
+    // Create website-specific favicon directory
+    $websiteFaviconDir = $faviconDir . $websiteId . '/';
+    if (!file_exists($websiteFaviconDir)) {
+        mkdir($websiteFaviconDir, 0755, true);
+    }
+    
+    // Load source image
+    switch ($mimeType) {
+        case 'image/png':
+            $sourceImage = @imagecreatefrompng($file['tmp_name']);
+            break;
+        case 'image/jpeg':
+            $sourceImage = @imagecreatefromjpeg($file['tmp_name']);
+            break;
+        case 'image/webp':
+            $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+            break;
+        default:
+            return ['error' => 'Unsupported image format'];
+    }
+    
+    if (!$sourceImage) {
+        return ['error' => 'Failed to load image'];
+    }
+    
+    $sourceWidth = imagesx($sourceImage);
+    $sourceHeight = imagesy($sourceImage);
+    
+    // Check minimum size
+    if ($sourceWidth < 512 || $sourceHeight < 512) {
+        imagedestroy($sourceImage);
+        return ['error' => 'Image must be at least 512x512 pixels. Uploaded: ' . $sourceWidth . 'x' . $sourceHeight];
+    }
+    
+    // Sizes to generate
+    $sizes = [
+        16 => 'favicon-16x16.png',
+        32 => 'favicon-32x32.png',
+        180 => 'apple-touch-icon.png',
+        192 => 'android-chrome-192x192.png',
+        512 => 'android-chrome-512x512.png'
+    ];
+    
+    $generatedFiles = [];
+    
+    foreach ($sizes as $size => $filename) {
+        $targetImage = imagecreatetruecolor($size, $size);
+        
+        // Preserve transparency
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
+        
+        // Resize
+        imagecopyresampled(
+            $targetImage, $sourceImage,
+            0, 0, 0, 0,
+            $size, $size,
+            $sourceWidth, $sourceHeight
+        );
+        
+        $filepath = $websiteFaviconDir . $filename;
+        
+        // Save as PNG
+        if (imagepng($targetImage, $filepath, 9)) {
+            $generatedFiles[] = $filename;
+        }
+        
+        imagedestroy($targetImage);
+    }
+    
+    // Save original as favicon.png (512x512)
+    $originalPath = $websiteFaviconDir . 'favicon-original.png';
+    imagepng($sourceImage, $originalPath, 9);
+    
+    imagedestroy($sourceImage);
+    
+    if (count($generatedFiles) === count($sizes)) {
+        return ['success' => true, 'files' => $generatedFiles, 'folder' => $websiteId];
+    } else {
+        return ['error' => 'Some favicon sizes failed to generate'];
+    }
+}
+
 function normalizeDomain($domain) {
     return str_replace('www.', '', strtolower(trim($domain)));
 }
@@ -175,6 +294,20 @@ function getAvailableLanguages() {
     }
     
     return $languages;
+}
+
+// Get favicon preview data
+function getFaviconPreviewData($websiteId, $faviconDir) {
+    $faviconPath = $faviconDir . $websiteId . '/favicon-32x32.png';
+    
+    if (!file_exists($faviconPath)) {
+        return null;
+    }
+    
+    $imageData = file_get_contents($faviconPath);
+    $base64 = base64_encode($imageData);
+    
+    return "data:image/png;base64,{$base64}";
 }
 
 $availableLanguages = getAvailableLanguages();
@@ -215,10 +348,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $language = trim($_POST['language'] ?? 'en');
         $status = $_POST['status'] ?? 'active';
         
+        // NEW: Get analytics and custom head code
+        $googleAnalyticsId = trim($_POST['google_analytics_id'] ?? '');
+        $customHeadCode = $_POST['custom_head_code'] ?? '';
+        
         // Normalize domain
         $domain = normalizeDomain($domain);
         
         if ($siteName && $domain) {
+            // Handle logo upload
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
                 $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
                 if (isset($uploadResult['success'])) {
@@ -232,6 +370,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $website['logo'] = $uploadResult['filename'];
                 } else {
                     $error = $uploadResult['error'];
+                }
+            }
+            
+            // Handle favicon upload
+            if (isset($_FILES['favicon_file']) && $_FILES['favicon_file']['size'] > 0) {
+                $faviconResult = generateFavicons($_FILES['favicon_file'], $faviconDir, $websiteId);
+                if (isset($faviconResult['success'])) {
+                    $websites[$websiteIndex]['favicon'] = $faviconResult['folder'];
+                    $website['favicon'] = $faviconResult['folder'];
+                    $success = 'Favicon generated successfully! ';
+                } else {
+                    $error = 'Favicon: ' . $faviconResult['error'];
                 }
             }
             
@@ -252,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
-                // NEW: Generate canonical URL
+                // Generate canonical URL
                 $canonicalUrl = generateCanonicalUrl($domain);
                 
                 $websites[$websiteIndex]['domain'] = $domain;
@@ -262,13 +412,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $websites[$websiteIndex]['secondary_color'] = $secondaryColor;
                 $websites[$websiteIndex]['language'] = $language;
                 $websites[$websiteIndex]['status'] = $status;
+                
+                // NEW: Save analytics and custom head code
+                $websites[$websiteIndex]['google_analytics_id'] = $googleAnalyticsId;
+                $websites[$websiteIndex]['custom_head_code'] = $customHeadCode;
+                
                 $previewDomain = $domain;
                 
                 $configData['websites'] = $websites;
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
                 if (file_put_contents($configFile, $jsonContent)) {
-                    $success = 'Website updated successfully!';
+                    $success .= 'Website updated successfully!';
                     
                     $configContent = file_get_contents($configFile);
                     $configData = json_decode($configContent, true);
@@ -316,6 +471,9 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     
     return "data:{$mimeType};base64,{$base64}";
 }
+
+// Check if favicon exists
+$hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website['favicon'] . '/favicon-32x32.png');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -407,6 +565,34 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                                 <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
                             </div>
                             
+                            <!-- NEW: Favicon Upload -->
+                            <div class="form-group">
+                                <label>Favicon</label>
+                                <div id="faviconPreview" class="favicon-preview <?php echo $hasFavicon ? '' : 'empty'; ?>">
+                                    <?php 
+                                    $faviconDataUrl = getFaviconPreviewData($website['favicon'] ?? '', $faviconDir);
+                                    if ($faviconDataUrl): 
+                                    ?>
+                                        <img src="<?php echo $faviconDataUrl; ?>" alt="Current Favicon" id="currentFaviconImg">
+                                    <?php else: ?>
+                                        ?
+                                    <?php endif; ?>
+                                </div>
+                                <div class="file-upload-wrapper">
+                                    <label for="favicon_file" class="file-upload-label favicon-upload-label">
+                                        <span>🖼️</span>
+                                        <span><?php echo $hasFavicon ? 'Change Favicon' : 'Choose Favicon'; ?></span>
+                                    </label>
+                                    <input type="file" id="favicon_file" name="favicon_file" class="file-upload-input" accept=".png,.jpg,.jpeg,.webp">
+                                    <div class="file-name-display" id="faviconFileName">
+                                        <?php echo $hasFavicon ? 'Favicon uploaded' : 'No file chosen'; ?>
+                                    </div>
+                                </div>
+                                <small>PNG, JPG, WEBP • <strong>Minimum: 512x512px</strong><br>Auto-generates all sizes (16, 32, 180, 192, 512)</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="language">Language</label>
                                 <select id="language" name="language">
@@ -418,14 +604,14 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                                 </select>
                                 <small><a href="languages.php">Manage languages</a></small>
                             </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="status">Status</label>
-                            <select id="status" name="status">
-                                <option value="active" <?php echo $website['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
-                                <option value="inactive" <?php echo $website['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-                            </select>
+                            
+                            <div class="form-group">
+                                <label for="status">Status</label>
+                                <select id="status" name="status">
+                                    <option value="active" <?php echo $website['status'] === 'active' ? 'selected' : ''; ?>>Active</option>
+                                    <option value="inactive" <?php echo $website['status'] === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     
@@ -451,6 +637,55 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
                         </div>
                     </div>
                     
+                    <!-- NEW SECTION: Analytics & Tracking -->
+                    <div class="form-section analytics-section">
+                        <h3>📊 Analytics & Tracking</h3>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="google_analytics_id">Google Analytics Measurement ID</label>
+                                <div class="input-with-icon">
+                                    <input type="text" id="google_analytics_id" name="google_analytics_id" 
+                                           value="<?php echo htmlspecialchars($website['google_analytics_id'] ?? ''); ?>" 
+                                           placeholder="G-XXXXXXXXXX">
+                                    <?php if (!empty($website['google_analytics_id'])): ?>
+                                        <a href="https://analytics.google.com/analytics/web/" target="_blank" class="input-icon-link" title="Open Google Analytics">
+                                            📊
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                                <small>Find your ID in Google Analytics → Admin → Data Streams → Your Stream</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Quick Links</label>
+                                <div class="quick-links">
+                                    <a href="https://search.google.com/search-console?resource_id=sc-domain%3A<?php echo urlencode($website['domain']); ?>" 
+                                       target="_blank" class="quick-link-btn">
+                                        🔍 Search Console
+                                    </a>
+                                    <a href="https://analytics.google.com/analytics/web/" 
+                                       target="_blank" class="quick-link-btn">
+                                        📊 Analytics
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- NEW SECTION: Custom Head Code -->
+                    <div class="form-section custom-code-section">
+                        <h3>🔧 Custom Head Code</h3>
+                        <p class="section-description">Add custom code to the &lt;head&gt; section. Use for ads (AdSense), tracking pixels, custom meta tags, etc.</p>
+                        
+                        <div class="form-group">
+                            <label for="custom_head_code">Custom &lt;head&gt; Code</label>
+                            <textarea id="custom_head_code" name="custom_head_code" rows="8" 
+                                      placeholder="<!-- Paste your AdSense, tracking pixels, or other head code here -->"><?php echo htmlspecialchars($website['custom_head_code'] ?? ''); ?></textarea>
+                            <small class="warning-text">⚠️ Be careful! Invalid code can break your website. Test after saving.</small>
+                        </div>
+                    </div>
+                    
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                         <a href="dashboard.php" class="btn btn-outline">Cancel</a>
@@ -461,5 +696,24 @@ function getLogoPreviewData($logoFilename, $uploadDir) {
     </div>
     
     <script src="js/website-edit.js"></script>
+    <script>
+        // Favicon file preview
+        document.getElementById('favicon_file')?.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('faviconPreview');
+            const fileName = document.getElementById('faviconFileName');
+            
+            if (file) {
+                fileName.textContent = file.name;
+                
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = '<img src="' + e.target.result + '" alt="Favicon Preview">';
+                    preview.classList.remove('empty');
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
 </body>
 </html>

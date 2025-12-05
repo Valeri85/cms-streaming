@@ -54,6 +54,16 @@ function renderLogoPreview($logo) {
         return '<span class="site-logo">' . htmlspecialchars($logo) . '</span>';
     }
 }
+
+// Function to generate Search Console URL
+function getSearchConsoleUrl($domain) {
+    return 'https://search.google.com/search-console?resource_id=sc-domain%3A' . urlencode($domain);
+}
+
+// Function to generate Analytics URL
+function getAnalyticsUrl() {
+    return 'https://analytics.google.com/analytics/web/';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -63,6 +73,83 @@ function renderLogoPreview($logo) {
     <title>CMS Dashboard</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        /* External Links Icons */
+        .external-links {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .external-link-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .external-link-icon:hover {
+            transform: scale(1.1);
+        }
+        
+        .external-link-icon.gsc {
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            color: white;
+        }
+        
+        .external-link-icon.ga {
+            background: linear-gradient(135deg, #f9ab00, #e37400);
+            color: white;
+        }
+        
+        .external-link-icon.ga.disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        
+        .external-link-icon.ga.disabled:hover {
+            transform: none;
+        }
+        
+        /* Tooltip */
+        .external-link-icon::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 4px 8px;
+            background: #333;
+            color: white;
+            font-size: 11px;
+            border-radius: 4px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            pointer-events: none;
+        }
+        
+        .external-link-icon:hover::after {
+            opacity: 1;
+            visibility: visible;
+            bottom: calc(100% + 5px);
+        }
+        
+        /* Update table layout */
+        .data-table th:first-child,
+        .data-table td:first-child {
+            width: 80px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
     <div class="cms-layout">
@@ -73,10 +160,10 @@ function renderLogoPreview($logo) {
             </div>
             
             <nav class="cms-nav">
-                <a href="dashboard.php" class="nav-item">
+                <a href="dashboard.php" class="nav-item active">
                     <span>🏠</span> Dashboard
                 </a>
-                <a href="website-add.php" class="nav-item active">
+                <a href="website-add.php" class="nav-item">
                     <span>➕</span> Add Website
                 </a>
                 <a href="languages.php" class="nav-item">
@@ -149,6 +236,7 @@ function renderLogoPreview($logo) {
                             <table class="data-table">
                                 <thead>
                                     <tr>
+                                        <th>Tools</th>
                                         <th>Domain</th>
                                         <th>Site Name</th>
                                         <th>Status</th>
@@ -158,6 +246,30 @@ function renderLogoPreview($logo) {
                                 <tbody>
                                     <?php foreach ($websites as $website): ?>
                                         <tr>
+                                            <!-- NEW: External Links Column -->
+                                            <td>
+                                                <div class="external-links">
+                                                    <a href="<?php echo getSearchConsoleUrl($website['domain']); ?>" 
+                                                       target="_blank" 
+                                                       class="external-link-icon gsc" 
+                                                       title="Search Console">
+                                                        🔍
+                                                    </a>
+                                                    <?php if (!empty($website['google_analytics_id'])): ?>
+                                                        <a href="<?php echo getAnalyticsUrl(); ?>" 
+                                                           target="_blank" 
+                                                           class="external-link-icon ga" 
+                                                           title="Analytics: <?php echo htmlspecialchars($website['google_analytics_id']); ?>">
+                                                            📊
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <span class="external-link-icon ga disabled" 
+                                                              title="No Analytics ID configured">
+                                                            📊
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </td>
                                             <td>
                                                 <a href="https://<?php echo htmlspecialchars($website['domain']); ?>" target="_blank" class="domain-link">
                                                     <?php echo htmlspecialchars($website['domain']); ?>
