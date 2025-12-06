@@ -1,5 +1,17 @@
 <?php
+/**
+ * Edit Website Settings
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header('Location: login.php');
@@ -15,311 +27,14 @@ if (!$websiteId) {
     exit;
 }
 
-$configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
-$uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
-$faviconDir = '/var/www/u1852176/data/www/streaming/images/favicons/';
-
-if (!file_exists($configFile)) {
-    die("Configuration file not found at: " . $configFile);
-}
-
-if (!file_exists($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
-}
-
-if (!file_exists($faviconDir)) {
-    mkdir($faviconDir, 0755, true);
-}
-
-// NEW FUNCTION: Generate canonical URL
-function generateCanonicalUrl($domain) {
-    // Normalize domain (remove www if present)
-    $normalized = str_replace('www.', '', strtolower(trim($domain)));
-    
-    // Generate canonical URL with https:// and www.
-    return 'https://www.' . $normalized;
-}
-
-function sanitizeSiteName($siteName) {
-    $filename = strtolower($siteName);
-    $filename = str_replace(' ', '-', $filename);
-    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    $filename = preg_replace('/-+/', '-', $filename);
-    $filename = trim($filename, '-');
-    $filename = $filename . '-logo';
-    return $filename;
-}
-
-function handleLogoUpload($file, $uploadDir, $siteName) {
-    $allowedTypes = ['image/webp', 'image/svg+xml'];
-    $allowedExtensions = ['webp', 'svg'];
-    
-    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-        return ['error' => 'No file uploaded'];
-    }
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    if (strpos($file['name'], '.avif') !== false) {
-        $mimeType = 'image/avif';
-        $allowedTypes[] = 'image/avif';
-        $allowedExtensions[] = 'avif';
-    }
-    
-    if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($extension, $allowedExtensions)) {
-        return ['error' => 'Invalid file extension'];
-    }
-    
-    $sanitizedName = sanitizeSiteName($siteName);
-    $filename = $sanitizedName . '.' . $extension;
-    $filepath = $uploadDir . $filename;
-    
-    if (file_exists($filepath)) {
-        unlink($filepath);
-    }
-    
-    if (in_array($extension, ['webp', 'avif'])) {
-        if (!extension_loaded('gd')) {
-            return ['error' => 'GD extension not available'];
-        }
-        
-        switch ($extension) {
-            case 'webp':
-                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-                break;
-            case 'avif':
-                if (function_exists('imagecreatefromavif')) {
-                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
-                } else {
-                    return ['error' => 'AVIF format not supported'];
-                }
-                break;
-        }
-        
-        if (!$sourceImage) {
-            return ['error' => 'Failed to process image'];
-        }
-        
-        $targetImage = imagecreatetruecolor(64, 64);
-        
-        imagealphablending($targetImage, false);
-        imagesavealpha($targetImage, true);
-        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-        imagefill($targetImage, 0, 0, $transparent);
-        
-        imagecopyresampled(
-            $targetImage, $sourceImage,
-            0, 0, 0, 0,
-            64, 64,
-            imagesx($sourceImage), imagesy($sourceImage)
-        );
-        
-        switch ($extension) {
-            case 'webp':
-                imagewebp($targetImage, $filepath, 90);
-                break;
-            case 'avif':
-                if (function_exists('imageavif')) {
-                    imageavif($targetImage, $filepath, 90);
-                }
-                break;
-        }
-        
-        imagedestroy($sourceImage);
-        imagedestroy($targetImage);
-    } else {
-        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-            return ['error' => 'Failed to save file'];
-        }
-    }
-    
-    return ['success' => true, 'filename' => $filename];
-}
-
-// ==========================================
-// FAVICON GENERATION FUNCTION
-// ==========================================
-function generateFavicons($file, $faviconDir, $websiteId) {
-    $allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
-    
-    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-        return ['error' => 'No file uploaded'];
-    }
-    
-    // Check GD library
-    if (!extension_loaded('gd')) {
-        return ['error' => 'GD extension not available. Cannot generate favicons.'];
-    }
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only PNG, JPG, WEBP allowed for favicon'];
-    }
-    
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($extension, $allowedExtensions)) {
-        return ['error' => 'Invalid file extension'];
-    }
-    
-    // Create website-specific favicon directory
-    $websiteFaviconDir = $faviconDir . $websiteId . '/';
-    if (!file_exists($websiteFaviconDir)) {
-        mkdir($websiteFaviconDir, 0755, true);
-    }
-    
-    // Load source image
-    switch ($mimeType) {
-        case 'image/png':
-            $sourceImage = @imagecreatefrompng($file['tmp_name']);
-            break;
-        case 'image/jpeg':
-            $sourceImage = @imagecreatefromjpeg($file['tmp_name']);
-            break;
-        case 'image/webp':
-            $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-            break;
-        default:
-            return ['error' => 'Unsupported image format'];
-    }
-    
-    if (!$sourceImage) {
-        return ['error' => 'Failed to load image'];
-    }
-    
-    $sourceWidth = imagesx($sourceImage);
-    $sourceHeight = imagesy($sourceImage);
-    
-    // Check minimum size
-    if ($sourceWidth < 512 || $sourceHeight < 512) {
-        imagedestroy($sourceImage);
-        return ['error' => 'Image must be at least 512x512 pixels. Uploaded: ' . $sourceWidth . 'x' . $sourceHeight];
-    }
-    
-    // Sizes to generate
-    $sizes = [
-        16 => 'favicon-16x16.png',
-        32 => 'favicon-32x32.png',
-        180 => 'apple-touch-icon.png',
-        192 => 'android-chrome-192x192.png',
-        512 => 'android-chrome-512x512.png'
-    ];
-    
-    $generatedFiles = [];
-    
-    foreach ($sizes as $size => $filename) {
-        $targetImage = imagecreatetruecolor($size, $size);
-        
-        // Preserve transparency
-        imagealphablending($targetImage, false);
-        imagesavealpha($targetImage, true);
-        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-        imagefill($targetImage, 0, 0, $transparent);
-        
-        // Resize
-        imagecopyresampled(
-            $targetImage, $sourceImage,
-            0, 0, 0, 0,
-            $size, $size,
-            $sourceWidth, $sourceHeight
-        );
-        
-        $filepath = $websiteFaviconDir . $filename;
-        
-        // Save as PNG
-        if (imagepng($targetImage, $filepath, 9)) {
-            $generatedFiles[] = $filename;
-        }
-        
-        imagedestroy($targetImage);
-    }
-    
-    // Save original as favicon.png (512x512)
-    $originalPath = $websiteFaviconDir . 'favicon-original.png';
-    imagepng($sourceImage, $originalPath, 9);
-    
-    imagedestroy($sourceImage);
-    
-    if (count($generatedFiles) === count($sizes)) {
-        return ['success' => true, 'files' => $generatedFiles, 'folder' => $websiteId];
-    } else {
-        return ['error' => 'Some favicon sizes failed to generate'];
-    }
-}
-
-function normalizeDomain($domain) {
-    return str_replace('www.', '', strtolower(trim($domain)));
-}
-
-// Load available languages (ALL globally active languages)
-function getAvailableLanguages() {
-    $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
-    $languages = [];
-    
-    if (is_dir($langDir)) {
-        $files = glob($langDir . '*.json');
-        
-        foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-            
-            if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
-                $code = $data['language_info']['code'];
-                $languages[$code] = [
-                    'name' => $data['language_info']['name'] ?? $code,
-                    'flag' => $data['language_info']['flag'] ?? '🏳️'
-                ];
-            }
-        }
-    }
-    
-    // Fallback if no languages found
-    if (empty($languages)) {
-        $languages = [
-            'en' => ['name' => 'English', 'flag' => '🇬🇧'],
-            'es' => ['name' => 'Spanish', 'flag' => '🇪🇸'],
-            'fr' => ['name' => 'French', 'flag' => '🇫🇷'],
-            'de' => ['name' => 'German', 'flag' => '🇩🇪']
-        ];
-    }
-    
-    // Sort: English first, then alphabetically
-    uksort($languages, function($a, $b) use ($languages) {
-        if ($a === 'en') return -1;
-        if ($b === 'en') return 1;
-        return strcmp($languages[$a]['name'], $languages[$b]['name']);
-    });
-    
-    return $languages;
-}
-
-// Get favicon preview data
-function getFaviconPreviewData($websiteId, $faviconDir) {
-    $faviconPath = $faviconDir . $websiteId . '/favicon-32x32.png';
-    
-    if (!file_exists($faviconPath)) {
-        return null;
-    }
-    
-    $imageData = file_get_contents($faviconPath);
-    $base64 = base64_encode($imageData);
-    
-    return "data:image/png;base64,{$base64}";
+// Use constants from config.php (directories auto-created by config.php)
+if (!file_exists(WEBSITES_CONFIG_FILE)) {
+    die("Configuration file not found at: " . WEBSITES_CONFIG_FILE);
 }
 
 $availableLanguages = getAvailableLanguages();
 
-$configContent = file_get_contents($configFile);
+$configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
 
@@ -358,11 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $language = trim($_POST['language'] ?? 'en');
         $status = $_POST['status'] ?? 'active';
         
-        // NEW: Get analytics and custom head code
+        // Get analytics and custom head code
         $googleAnalyticsId = trim($_POST['google_analytics_id'] ?? '');
         $customHeadCode = $_POST['custom_head_code'] ?? '';
         
-        // NEW: Get enabled languages (checkboxes)
+        // Get enabled languages (checkboxes)
         $postedEnabledLanguages = $_POST['enabled_languages'] ?? [];
         
         // Ensure default language is always enabled
@@ -375,17 +90,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             array_unshift($postedEnabledLanguages, 'en');
         }
         
-        // Normalize domain
+        // Normalize domain (function from functions.php)
         $domain = normalizeDomain($domain);
         
         if ($siteName && $domain) {
-            // Handle logo upload
+            // Handle logo upload (function from functions.php, constant from config.php)
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
-                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
+                $uploadResult = handleLogoUpload($_FILES['logo_file'], LOGOS_DIR, $siteName);
                 if (isset($uploadResult['success'])) {
                     if (!empty($website['logo'])) {
-                        $oldLogoPath = $uploadDir . $website['logo'];
-                        if (file_exists($oldLogoPath) && $oldLogoPath !== $uploadDir . $uploadResult['filename']) {
+                        $oldLogoPath = LOGOS_DIR . $website['logo'];
+                        if (file_exists($oldLogoPath) && $oldLogoPath !== LOGOS_DIR . $uploadResult['filename']) {
                             unlink($oldLogoPath);
                         }
                     }
@@ -396,9 +111,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Handle favicon upload
+            // Handle favicon upload (function from functions.php, constant from config.php)
             if (isset($_FILES['favicon_file']) && $_FILES['favicon_file']['size'] > 0) {
-                $faviconResult = generateFavicons($_FILES['favicon_file'], $faviconDir, $websiteId);
+                $faviconResult = generateFavicons($_FILES['favicon_file'], FAVICONS_DIR, $websiteId);
                 if (isset($faviconResult['success'])) {
                     $websites[$websiteIndex]['favicon'] = $faviconResult['folder'];
                     $website['favicon'] = $faviconResult['folder'];
@@ -409,14 +124,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             if (!$error) {
+                // Rename logo file if site name changed
                 if ($siteName !== $website['site_name'] && !empty($website['logo'])) {
                     $oldLogoFile = $website['logo'];
-                    $oldLogoPath = $uploadDir . $oldLogoFile;
+                    $oldLogoPath = LOGOS_DIR . $oldLogoFile;
                     
                     if (file_exists($oldLogoPath) && preg_match('/\.(webp|svg|avif)$/i', $oldLogoFile)) {
                         $extension = pathinfo($oldLogoFile, PATHINFO_EXTENSION);
                         $newLogoFilename = sanitizeSiteName($siteName) . '.' . $extension;
-                        $newLogoPath = $uploadDir . $newLogoFilename;
+                        $newLogoPath = LOGOS_DIR . $newLogoFilename;
                         
                         if (rename($oldLogoPath, $newLogoPath)) {
                             $websites[$websiteIndex]['logo'] = $newLogoFilename;
@@ -425,7 +141,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 
-                // Generate canonical URL
+                // Generate canonical URL (function from functions.php)
                 $canonicalUrl = generateCanonicalUrl($domain);
                 
                 $websites[$websiteIndex]['domain'] = $domain;
@@ -436,11 +152,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $websites[$websiteIndex]['language'] = $language;
                 $websites[$websiteIndex]['status'] = $status;
                 
-                // NEW: Save analytics and custom head code
+                // Save analytics and custom head code
                 $websites[$websiteIndex]['google_analytics_id'] = $googleAnalyticsId;
                 $websites[$websiteIndex]['custom_head_code'] = $customHeadCode;
                 
-                // NEW: Save enabled languages
+                // Save enabled languages
                 $websites[$websiteIndex]['enabled_languages'] = array_values($postedEnabledLanguages);
                 
                 $previewDomain = $domain;
@@ -448,10 +164,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $configData['websites'] = $websites;
                 $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 
-                if (file_put_contents($configFile, $jsonContent)) {
+                if (file_put_contents(WEBSITES_CONFIG_FILE, $jsonContent)) {
                     $success .= 'Website updated successfully!';
                     
-                    $configContent = file_get_contents($configFile);
+                    $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
                     $configData = json_decode($configContent, true);
                     $websites = $configData['websites'] ?? [];
                     
@@ -467,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $previewDomain = $website['domain'];
                 } else {
-                    $error = 'Failed to save changes. Check file permissions: chmod 644 ' . $configFile;
+                    $error = 'Failed to save changes. Check file permissions: chmod 644 ' . WEBSITES_CONFIG_FILE;
                 }
             }
         } else {
@@ -476,32 +192,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-function getLogoPreviewData($logoFilename, $uploadDir) {
-    if (empty($logoFilename)) {
-        return null;
-    }
-    
-    $logoPath = $uploadDir . $logoFilename;
-    
-    if (!file_exists($logoPath)) {
-        return null;
-    }
-    
-    $extension = strtolower(pathinfo($logoFilename, PATHINFO_EXTENSION));
-    
-    if ($extension === 'svg') {
-        $svgContent = file_get_contents($logoPath);
-        $base64 = base64_encode($svgContent);
-        return "data:image/svg+xml;base64,{$base64}";
-    } else {
-        $imageData = file_get_contents($logoPath);
-        $base64 = base64_encode($imageData);
-        $mimeType = ($extension === 'avif') ? 'image/avif' : 'image/' . $extension;
-        return "data:{$mimeType};base64,{$base64}";
-    }
-}
-
-$hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website['favicon'] . '/favicon-32x32.png');
+// Check if favicon exists - use constant from config.php
+$hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website['favicon'] . '/favicon-32x32.png');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -763,7 +455,8 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                                 <label>Logo Image</label>
                                 <div id="logoPreview" class="logo-preview <?php echo (!empty($website['logo']) && preg_match('/\.(webp|svg|avif)$/i', $website['logo'])) ? '' : 'empty'; ?>">
                                     <?php 
-                                    $logoDataUrl = getLogoPreviewData($website['logo'] ?? '', $uploadDir);
+                                    // Use constant from config.php
+                                    $logoDataUrl = getLogoPreviewData($website['logo'] ?? '', LOGOS_DIR);
                                     if ($logoDataUrl): 
                                     ?>
                                         <img src="<?php echo $logoDataUrl; ?>" alt="Current Logo">
@@ -784,12 +477,13 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                                 <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
                             </div>
                             
-                            <!-- NEW: Favicon Upload -->
+                            <!-- Favicon Upload -->
                             <div class="form-group">
                                 <label>Favicon</label>
                                 <div id="faviconPreview" class="favicon-preview <?php echo $hasFavicon ? '' : 'empty'; ?>">
                                     <?php 
-                                    $faviconDataUrl = getFaviconPreviewData($website['favicon'] ?? '', $faviconDir);
+                                    // Use constant from config.php
+                                    $faviconDataUrl = getFaviconPreviewData($website['favicon'] ?? '', FAVICONS_DIR);
                                     if ($faviconDataUrl): 
                                     ?>
                                         <img src="<?php echo $faviconDataUrl; ?>" alt="Current Favicon" id="currentFaviconImg">
@@ -834,7 +528,7 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                         </div>
                     </div>
                     
-                    <!-- NEW SECTION: Enabled Languages -->
+                    <!-- Enabled Languages Section -->
                     <div class="form-section">
                         <h3>🌐 Enabled Languages</h3>
                         
@@ -853,15 +547,15 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                                 $isMaster = ($code === 'en');
                             ?>
                                 <label class="language-checkbox-item <?php echo $isEnabled ? 'checked' : ''; ?> <?php echo ($isDefault || $isMaster) ? 'disabled' : ''; ?>" 
-                                       data-lang-code="<?php echo htmlspecialchars($code); ?>"
-                                       data-lang-name="<?php echo htmlspecialchars($lang['name']); ?>"
-                                       data-lang-flag="<?php echo htmlspecialchars($lang['flag']); ?>">
+                                        data-lang-code="<?php echo htmlspecialchars($code); ?>"
+                                        data-lang-name="<?php echo htmlspecialchars($lang['name']); ?>"
+                                        data-lang-flag="<?php echo htmlspecialchars($lang['flag']); ?>">
                                     <input type="checkbox" 
-                                           name="enabled_languages[]" 
-                                           value="<?php echo htmlspecialchars($code); ?>"
-                                           <?php echo $isEnabled ? 'checked' : ''; ?>
-                                           <?php echo ($isDefault || $isMaster) ? 'disabled' : ''; ?>
-                                           class="lang-checkbox">
+                                            name="enabled_languages[]" 
+                                            value="<?php echo htmlspecialchars($code); ?>"
+                                            <?php echo $isEnabled ? 'checked' : ''; ?>
+                                            <?php echo ($isDefault || $isMaster) ? 'disabled' : ''; ?>
+                                            class="lang-checkbox">
                                     <?php if ($isDefault || $isMaster): ?>
                                         <!-- Hidden input to ensure disabled checkboxes still submit -->
                                         <input type="hidden" name="enabled_languages[]" value="<?php echo htmlspecialchars($code); ?>">
@@ -907,7 +601,7 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                         </div>
                     </div>
                     
-                    <!-- NEW SECTION: Analytics & Tracking -->
+                    <!-- Analytics & Tracking Section -->
                     <div class="form-section analytics-section">
                         <h3>📊 Analytics & Tracking</h3>
                         
@@ -943,7 +637,7 @@ $hasFavicon = !empty($website['favicon']) && file_exists($faviconDir . $website[
                         </div>
                     </div>
                     
-                    <!-- NEW SECTION: Custom Head Code -->
+                    <!-- Custom Head Code Section -->
                     <div class="form-section custom-code-section">
                         <h3>🔧 Custom Head Code</h3>
                         <p class="section-description">Add custom code to the &lt;head&gt; section. Use for ads (AdSense), tracking pixels, custom meta tags, etc.</p>

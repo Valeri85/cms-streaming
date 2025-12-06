@@ -1,5 +1,17 @@
 <?php
+/**
+ * Sport Icons Management
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header('Location: login.php');
@@ -9,159 +21,14 @@ if (!isset($_SESSION['admin_id'])) {
 $error = '';
 $success = '';
 
-// Paths
-$masterSportsFile = '/var/www/u1852176/data/www/streaming/config/master-sports.json';
-$iconsDir = '/var/www/u1852176/data/www/streaming/shared/icons/sports/';
-
-// Ensure icons directory exists
-if (!file_exists($iconsDir)) {
-    mkdir($iconsDir, 0755, true);
-}
+// Directories are auto-created by config.php via ensureDirectoryExists()
 
 // Load master sports list
 $sports = [];
-if (file_exists($masterSportsFile)) {
-    $content = file_get_contents($masterSportsFile);
+if (file_exists(MASTER_SPORTS_FILE)) {
+    $content = file_get_contents(MASTER_SPORTS_FILE);
     $data = json_decode($content, true);
     $sports = $data['sports'] ?? [];
-}
-
-// ==========================================
-// HELPER FUNCTIONS
-// ==========================================
-
-function sanitizeSportName($sportName) {
-    $filename = strtolower($sportName);
-    $filename = str_replace(' ', '-', $filename);
-    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    $filename = preg_replace('/-+/', '-', $filename);
-    $filename = trim($filename, '-');
-    return $filename;
-}
-
-function getIconPath($sportName, $iconsDir) {
-    $sanitized = sanitizeSportName($sportName);
-    $extensions = ['webp', 'svg', 'avif'];
-    
-    foreach ($extensions as $ext) {
-        $path = $iconsDir . $sanitized . '.' . $ext;
-        if (file_exists($path)) {
-            return [
-                'exists' => true,
-                'filename' => $sanitized . '.' . $ext,
-                'extension' => $ext,
-                'path' => $path
-            ];
-        }
-    }
-    
-    return [
-        'exists' => false,
-        'filename' => null,
-        'extension' => null,
-        'path' => null
-    ];
-}
-
-function handleIconUpload($file, $iconsDir, $sportName) {
-    $allowedTypes = ['image/webp', 'image/svg+xml', 'image/avif'];
-    $allowedExtensions = ['webp', 'svg', 'avif'];
-    
-    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-        return ['error' => 'No file uploaded'];
-    }
-    
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    
-    if (!in_array($extension, $allowedExtensions)) {
-        return ['error' => 'Invalid file extension. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    // Handle AVIF detection issue
-    if ($extension === 'avif') {
-        $mimeType = 'image/avif';
-    }
-    
-    if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    $sanitizedName = sanitizeSportName($sportName);
-    $filename = $sanitizedName . '.' . $extension;
-    $filepath = $iconsDir . $filename;
-    
-    // Delete existing icon with any extension
-    foreach (['webp', 'svg', 'avif'] as $ext) {
-        $existingFile = $iconsDir . $sanitizedName . '.' . $ext;
-        if (file_exists($existingFile)) {
-            unlink($existingFile);
-        }
-    }
-    
-    // Process and resize image (for webp and avif)
-    if (in_array($extension, ['webp', 'avif'])) {
-        if (!extension_loaded('gd')) {
-            return ['error' => 'GD extension not available'];
-        }
-        
-        switch ($extension) {
-            case 'webp':
-                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-                break;
-            case 'avif':
-                if (function_exists('imagecreatefromavif')) {
-                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
-                } else {
-                    return ['error' => 'AVIF format not supported on this server'];
-                }
-                break;
-        }
-        
-        if (!$sourceImage) {
-            return ['error' => 'Failed to process image'];
-        }
-        
-        // Resize to 64x64
-        $targetImage = imagecreatetruecolor(64, 64);
-        
-        // Preserve transparency
-        imagealphablending($targetImage, false);
-        imagesavealpha($targetImage, true);
-        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-        imagefill($targetImage, 0, 0, $transparent);
-        
-        imagecopyresampled(
-            $targetImage, $sourceImage,
-            0, 0, 0, 0,
-            64, 64,
-            imagesx($sourceImage), imagesy($sourceImage)
-        );
-        
-        switch ($extension) {
-            case 'webp':
-                imagewebp($targetImage, $filepath, 90);
-                break;
-            case 'avif':
-                if (function_exists('imageavif')) {
-                    imageavif($targetImage, $filepath, 90);
-                }
-                break;
-        }
-        
-        imagedestroy($sourceImage);
-        imagedestroy($targetImage);
-    } else {
-        // For SVG, just move the file
-        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-            return ['error' => 'Failed to save file'];
-        }
-    }
-    
-    return ['success' => true, 'filename' => $filename];
 }
 
 // ==========================================
@@ -174,7 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sportName = $_POST['sport_name'] ?? '';
         
         if ($sportName && isset($_FILES['icon_file']) && $_FILES['icon_file']['size'] > 0) {
-            $result = handleIconUpload($_FILES['icon_file'], $iconsDir, $sportName);
+            // Use function from functions.php with constant from config.php
+            $result = handleIconUpload($_FILES['icon_file'], SPORT_ICONS_DIR, $sportName);
             
             if (isset($result['success'])) {
                 $success = "✅ Icon uploaded for '{$sportName}'";
@@ -191,7 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $sportName = $_POST['sport_name'] ?? '';
         
         if ($sportName) {
-            $iconInfo = getIconPath($sportName, $iconsDir);
+            // Use function from functions.php with constant from config.php
+            $iconInfo = getIconPath($sportName, SPORT_ICONS_DIR);
             
             if ($iconInfo['exists'] && file_exists($iconInfo['path'])) {
                 unlink($iconInfo['path']);
@@ -209,7 +78,7 @@ $iconsUploaded = 0;
 $iconsMissing = 0;
 
 foreach ($sports as $sport) {
-    $iconInfo = getIconPath($sport, $iconsDir);
+    $iconInfo = getIconPath($sport, SPORT_ICONS_DIR);
     if ($iconInfo['exists']) {
         $iconsUploaded++;
     } else {
@@ -308,15 +177,17 @@ foreach ($sports as $sport) {
                     
                     <div class="icons-grid">
                         <?php foreach ($sports as $sport): 
-                            $iconInfo = getIconPath($sport, $iconsDir);
+                            // Use functions from functions.php
+                            $iconInfo = getIconPath($sport, SPORT_ICONS_DIR);
                             $hasIcon = $iconInfo['exists'];
-                            $iconUrl = $hasIcon ? '/shared/icons/sports/' . $iconInfo['filename'] : null;
+                            // Use constant from config.php for URL path
+                            $iconUrl = $hasIcon ? (SPORT_ICONS_URL_PATH . $iconInfo['filename']) : null;
                             $sanitizedName = sanitizeSportName($sport);
                         ?>
                         <div class="icon-card <?php echo $hasIcon ? 'has-icon' : 'no-icon'; ?>">
                             <div class="icon-preview">
                                 <?php if ($hasIcon): ?>
-                                    <img src="https://www.sportlemons.info/shared/icons/sports/<?php echo htmlspecialchars($iconInfo['filename']); ?>?v=<?php echo time(); ?>" 
+                                    <img src="<?php echo $iconUrl; ?>?v=<?php echo time(); ?>" 
                                          alt="<?php echo htmlspecialchars($sport); ?>">
                                 <?php else: ?>
                                     <span class="placeholder-icon">?</span>

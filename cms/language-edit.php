@@ -1,5 +1,17 @@
 <?php
+/**
+ * Edit Language Translations
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header('Location: login.php');
@@ -15,9 +27,9 @@ if (!$langCode) {
     exit;
 }
 
-$langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
-$langFile = $langDir . $langCode . '.json';
-$englishFile = $langDir . 'en.json';
+// Use constant from config.php
+$langFile = LANG_DIR . $langCode . '.json';
+$englishFile = LANG_DIR . 'en.json';
 
 // Check if language file exists
 if (!file_exists($langFile)) {
@@ -180,112 +192,9 @@ $sportsList = $englishData['sports'] ?? [];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit <?php echo htmlspecialchars($langName); ?> - Languages - CMS</title>
+    <title>Edit <?php echo htmlspecialchars($langName); ?> - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
-    <link rel="stylesheet" href="css/languages.css">
-    <style>
-        /* Additional styles for edit page */
-        .language-edit-header {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            margin-bottom: 30px;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 12px;
-            color: white;
-        }
-        
-        .language-edit-flag {
-            font-size: 64px;
-        }
-        
-        .language-edit-info h2 {
-            margin: 0 0 5px 0;
-            font-size: 28px;
-        }
-        
-        .language-edit-info p {
-            margin: 0;
-            opacity: 0.9;
-        }
-        
-        .save-bar {
-            position: sticky;
-            bottom: 20px;
-            background: white;
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 30px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .save-bar-info {
-            color: #7f8c8d;
-            font-size: 14px;
-        }
-        
-        .english-reference {
-            font-size: 12px;
-            color: #7f8c8d;
-            margin-top: 4px;
-            font-style: italic;
-        }
-        
-        .english-reference strong {
-            color: #3498db;
-        }
-        
-        .lang-info-section {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            border: 2px solid #e9ecef;
-        }
-        
-        .lang-info-section h3 {
-            margin: 0 0 15px 0;
-            color: #2c3e50;
-        }
-        
-        .lang-info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-        
-        .section-nav {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        
-        .section-nav a {
-            padding: 8px 16px;
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 6px;
-            color: #2c3e50;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 14px;
-            transition: all 0.3s;
-        }
-        
-        .section-nav a:hover {
-            border-color: #3498db;
-            color: #3498db;
-        }
-    </style>
+    <link rel="stylesheet" href="css/language-edit.css">
 </head>
 <body>
     <div class="cms-layout">
@@ -303,6 +212,9 @@ $sportsList = $englishData['sports'] ?? [];
                 </a>
                 <a href="languages.php" class="nav-item active">
                     <span>🌐</span> Languages
+                </a>
+                <a href="icons.php" class="nav-item">
+                    <span>🖼️</span> Sport Icons
                 </a>
             </nav>
             

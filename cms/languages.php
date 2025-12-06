@@ -1,18 +1,29 @@
 <?php
+/**
+ * Languages Management
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header('Location: login.php');
     exit;
 }
 
-$langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
 $error = '';
 $success = '';
 
-// Create lang directory if it doesn't exist
-if (!file_exists($langDir)) {
-    mkdir($langDir, 0755, true);
+// Create lang directory if it doesn't exist (uses constant from config.php)
+if (!file_exists(LANG_DIR)) {
+    mkdir(LANG_DIR, 0755, true);
 }
 
 // ==========================================
@@ -22,7 +33,7 @@ if (!file_exists($langDir)) {
 // Toggle language active status
 if (isset($_POST['toggle_status'])) {
     $langCode = $_POST['lang_code'] ?? '';
-    $langFile = $langDir . $langCode . '.json';
+    $langFile = LANG_DIR . $langCode . '.json';
     
     if (file_exists($langFile)) {
         $langData = json_decode(file_get_contents($langFile), true);
@@ -53,7 +64,7 @@ if (isset($_POST['delete_language'])) {
     } elseif ($langCode !== $confirmCode) {
         $error = "❌ Language code doesn't match. Deletion cancelled.";
     } else {
-        $langFile = $langDir . $langCode . '.json';
+        $langFile = LANG_DIR . $langCode . '.json';
         
         if (file_exists($langFile)) {
             $langData = json_decode(file_get_contents($langFile), true);
@@ -76,8 +87,8 @@ if (isset($_POST['delete_language'])) {
 
 $languages = [];
 
-if (is_dir($langDir)) {
-    $files = glob($langDir . '*.json');
+if (is_dir(LANG_DIR)) {
+    $files = glob(LANG_DIR . '*.json');
     
     foreach ($files as $file) {
         $content = file_get_contents($file);
@@ -110,7 +121,7 @@ if (is_dir($langDir)) {
 }
 
 // Sort languages: English first, then alphabetically
-uksort($languages, function($a, $b) {
+uksort($languages, function($a, $b) use ($languages) {
     if ($a === 'en') return -1;
     if ($b === 'en') return 1;
     return strcmp($languages[$a]['info']['name'] ?? $a, $languages[$b]['info']['name'] ?? $b);

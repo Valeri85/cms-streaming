@@ -1,5 +1,17 @@
 <?php
+/**
+ * Add New Website
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header('Location: login.php');
@@ -9,164 +21,30 @@ if (!isset($_SESSION['admin_id'])) {
 $error = '';
 $success = '';
 
-$configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
-$masterSportsFile = '/var/www/u1852176/data/www/streaming/config/master-sports.json';
-$uploadDir = '/var/www/u1852176/data/www/streaming/images/logos/';
-
-if (!file_exists($configFile)) {
-    die("Configuration file not found at: " . $configFile);
+// Use constants from config.php
+if (!file_exists(WEBSITES_CONFIG_FILE)) {
+    die("Configuration file not found at: " . WEBSITES_CONFIG_FILE);
 }
 
-if (!file_exists($masterSportsFile)) {
-    die("Master sports file not found at: " . $masterSportsFile);
+if (!file_exists(MASTER_SPORTS_FILE)) {
+    die("Master sports file not found at: " . MASTER_SPORTS_FILE);
 }
 
-if (!file_exists($uploadDir)) {
-    mkdir($uploadDir, 0755, true);
-}
+// Directories are auto-created by config.php via ensureDirectoryExists()
 
-// NEW FUNCTION: Generate canonical URL
-function generateCanonicalUrl($domain) {
-    // Normalize domain (remove www if present)
-    $normalized = str_replace('www.', '', strtolower(trim($domain)));
-    
-    // Generate canonical URL with https:// and www.
-    return 'https://www.' . $normalized;
-}
+// ==========================================
+// PAGE-SPECIFIC FUNCTIONS
+// ==========================================
 
-function sanitizeSiteName($siteName) {
-    $filename = strtolower($siteName);
-    $filename = str_replace(' ', '-', $filename);
-    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    $filename = preg_replace('/-+/', '-', $filename);
-    $filename = trim($filename, '-');
-    $filename = $filename . '-logo';
-    
-    return $filename;
-}
-
-function handleLogoUpload($file, $uploadDir, $siteName) {
-    $allowedTypes = ['image/webp', 'image/svg+xml'];
-    $allowedExtensions = ['webp', 'svg'];
-    
-    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
-        return ['error' => 'No file uploaded'];
-    }
-    
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
-    
-    if (strpos($file['name'], '.avif') !== false) {
-        $mimeType = 'image/avif';
-        $allowedTypes[] = 'image/avif';
-        $allowedExtensions[] = 'avif';
-    }
-    
-    if (!in_array($mimeType, $allowedTypes)) {
-        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
-    }
-    
-    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($extension, $allowedExtensions)) {
-        return ['error' => 'Invalid file extension'];
-    }
-    
-    $sanitizedName = sanitizeSiteName($siteName);
-    $filename = $sanitizedName . '.' . $extension;
-    $filepath = $uploadDir . $filename;
-    
-    if (file_exists($filepath)) {
-        unlink($filepath);
-    }
-    
-    if (in_array($extension, ['webp', 'avif'])) {
-        if (!extension_loaded('gd')) {
-            return ['error' => 'GD extension not available'];
-        }
-        
-        switch ($extension) {
-            case 'webp':
-                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
-                break;
-            case 'avif':
-                if (function_exists('imagecreatefromavif')) {
-                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
-                } else {
-                    return ['error' => 'AVIF format not supported on this server'];
-                }
-                break;
-        }
-        
-        if (!$sourceImage) {
-            return ['error' => 'Failed to process image'];
-        }
-        
-        $targetImage = imagecreatetruecolor(64, 64);
-        
-        imagealphablending($targetImage, false);
-        imagesavealpha($targetImage, true);
-        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
-        imagefill($targetImage, 0, 0, $transparent);
-        
-        imagecopyresampled(
-            $targetImage, $sourceImage,
-            0, 0, 0, 0,
-            64, 64,
-            imagesx($sourceImage), imagesy($sourceImage)
-        );
-        
-        switch ($extension) {
-            case 'webp':
-                imagewebp($targetImage, $filepath, 90);
-                break;
-            case 'avif':
-                if (function_exists('imageavif')) {
-                    imageavif($targetImage, $filepath, 90);
-                }
-                break;
-        }
-        
-        imagedestroy($sourceImage);
-        imagedestroy($targetImage);
-    } else {
-        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
-            return ['error' => 'Failed to save file'];
-        }
-    }
-    
-    return ['success' => true, 'filename' => $filename];
-}
-
-// Load sports from master-sports.json
-function getSportsListForNewWebsite() {
-    $masterSportsFile = '/var/www/u1852176/data/www/streaming/config/master-sports.json';
-    
-    if (file_exists($masterSportsFile)) {
-        $masterSportsContent = file_get_contents($masterSportsFile);
-        $masterSportsData = json_decode($masterSportsContent, true);
-        
-        if (isset($masterSportsData['sports']) && is_array($masterSportsData['sports'])) {
-            return $masterSportsData['sports'];
-        }
-    }
-    
-    // Send Slack notification if master-sports.json not found
-    sendMasterSportsNotFoundNotification();
-    
-    // Return empty array if master-sports.json not found or invalid
-    return [];
-}
-
-// Send Slack notification when master-sports.json is missing
+/**
+ * Send Slack notification when master-sports.json is missing
+ */
 function sendMasterSportsNotFoundNotification() {
-    $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
-    
-    if (!file_exists($slackConfigFile)) {
+    if (!file_exists(SLACK_CONFIG_FILE)) {
         return false;
     }
     
-    $slackConfig = json_decode(file_get_contents($slackConfigFile), true);
+    $slackConfig = json_decode(file_get_contents(SLACK_CONFIG_FILE), true);
     $slackWebhookUrl = $slackConfig['webhook_url'] ?? '';
     
     if (empty($slackWebhookUrl)) {
@@ -187,7 +65,7 @@ function sendMasterSportsNotFoundNotification() {
                 'type' => 'section',
                 'text' => [
                     'type' => 'mrkdwn',
-                    'text' => "*Expected location:*\n`/var/www/u1852176/data/www/streaming/config/master-sports.json`"
+                    'text' => "*Expected location:*\n`" . MASTER_SPORTS_FILE . "`"
                 ]
             ],
             [
@@ -212,9 +90,11 @@ function sendMasterSportsNotFoundNotification() {
     return true;
 }
 
-// Create config PHP file for new website
+/**
+ * Create config PHP file for new website
+ */
 function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryColor, $language) {
-    $configDir = '/var/www/u1852176/data/www/streaming/config/websites/';
+    $configDir = CONFIG_DIR . '/websites/';
     
     if (!file_exists($configDir)) {
         mkdir($configDir, 0755, true);
@@ -243,45 +123,15 @@ function createConfigFile($domain, $siteName, $logo, $primaryColor, $secondaryCo
     }
 }
 
-// Load available languages
-function getAvailableLanguages() {
-    $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
-    $languages = [];
-    
-    if (is_dir($langDir)) {
-        $files = glob($langDir . '*.json');
-        
-        foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-            
-            if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
-                $code = $data['language_info']['code'];
-                $languages[$code] = [
-                    'name' => $data['language_info']['name'] ?? $code,
-                    'flag' => $data['language_info']['flag'] ?? '🏳️'
-                ];
-            }
-        }
-    }
-    
-    // Fallback if no languages found
-    if (empty($languages)) {
-        $languages = [
-            'en' => ['name' => 'English', 'flag' => '🇬🇧'],
-            'es' => ['name' => 'Spanish', 'flag' => '🇪🇸'],
-            'fr' => ['name' => 'French', 'flag' => '🇫🇷'],
-            'de' => ['name' => 'German', 'flag' => '🇩🇪']
-        ];
-    }
-    
-    return $languages;
-}
-
+// Get available languages (from functions.php)
 $availableLanguages = getAvailableLanguages();
 
+// ==========================================
+// HANDLE FORM SUBMISSION
+// ==========================================
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $configContent = file_get_contents($configFile);
+    $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
     $configData = json_decode($configContent, true);
     $websites = $configData['websites'] ?? [];
     
@@ -296,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($siteName && $domain) {
         // Normalize domain (remove www. prefix)
-        $normalizedDomain = str_replace('www.', '', strtolower(trim($domain)));
+        $normalizedDomain = normalizeDomain($domain);
         
         $domainExists = false;
         foreach ($websites as $website) {
@@ -309,9 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($domainExists) {
             $error = 'Domain already exists!';
         } else {
-            // Handle logo upload
+            // Handle logo upload (function from functions.php)
             if (isset($_FILES['logo_file']) && $_FILES['logo_file']['size'] > 0) {
-                $uploadResult = handleLogoUpload($_FILES['logo_file'], $uploadDir, $siteName);
+                $uploadResult = handleLogoUpload($_FILES['logo_file'], LOGOS_DIR, $siteName);
                 if (isset($uploadResult['success'])) {
                     $logo = $uploadResult['filename'];
                 } else {
@@ -329,10 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $newId = $maxId + 1;
                 
-                // Load sports from master-sports.json
+                // Load sports from master-sports.json (function from functions.php)
                 $sportsList = getSportsListForNewWebsite();
                 
-                // Generate canonical URL
+                // Generate canonical URL (function from functions.php)
                 $canonicalUrl = generateCanonicalUrl($normalizedDomain);
                 
                 // Create config PHP file
@@ -355,7 +205,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'sidebar_content' => '',
                         'status' => $status,
                         'sports_categories' => $sportsList,
-                        // NEW: Start with English only - add more languages as you translate
                         'enabled_languages' => ['en']
                     ];
                     
@@ -364,12 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                     
-                    if (file_put_contents($configFile, $jsonContent)) {
+                    if (file_put_contents(WEBSITES_CONFIG_FILE, $jsonContent)) {
                         $sportsCount = count($sportsList);
                         $success = "Website added successfully with {$sportsCount} sport categories! Config file created: {$configFileResult['filename']}. Languages: English only (add more in Settings after translating).";
                         $_POST = [];
                     } else {
-                        $error = 'Failed to save. Check file permissions: chmod 644 ' . $configFile;
+                        $error = 'Failed to save. Check file permissions: chmod 644 ' . WEBSITES_CONFIG_FILE;
                     }
                 }
             }
@@ -379,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$configContent = file_get_contents($configFile);
+$configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $existingWebsites = $configData['websites'] ?? [];
 $currentSportsCount = count(getSportsListForNewWebsite());

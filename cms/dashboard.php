@@ -1,5 +1,17 @@
 <?php
+/**
+ * CMS Dashboard
+ * 
+ * REFACTORED: Uses centralized config and functions
+ */
+
 session_start();
+
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['admin_id'])) {
@@ -7,14 +19,12 @@ if (!isset($_SESSION['admin_id'])) {
     exit;
 }
 
-// Load websites from JSON - using absolute path
-$configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
-
-if (!file_exists($configFile)) {
-    die("Configuration file not found at: " . $configFile);
+// Load websites from JSON - using constant from config.php
+if (!file_exists(WEBSITES_CONFIG_FILE)) {
+    die("Configuration file not found at: " . WEBSITES_CONFIG_FILE);
 }
 
-$configContent = file_get_contents($configFile);
+$configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
 $admins = $configData['admins'] ?? [];
@@ -41,26 +51,34 @@ if (isset($_SESSION['delete_success'])) {
     unset($_SESSION['delete_success']);
 }
 
-// REFACTORED: Function to render logo with RELATIVE path
+// ==========================================
+// DASHBOARD-SPECIFIC FUNCTIONS
+// (These are specific to dashboard and don't need to be in shared functions.php)
+// ==========================================
+
+/**
+ * Render logo preview with relative path
+ */
 function renderLogoPreview($logo) {
-    // Check if logo contains file extension (is a file)
     if (preg_match('/\.(png|jpg|jpeg|webp|svg|avif)$/i', $logo)) {
-        // It's an image file - RELATIVE PATH
         $logoFile = htmlspecialchars($logo);
         $logoUrl = '/images/logos/' . $logoFile;
         return '<img src="' . $logoUrl . '?v=' . time() . '" alt="Logo" class="logo-preview-img" style="width: 32px; height: 32px; object-fit: contain; vertical-align: middle; margin-right: 8px; border-radius: 4px;" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'inline\';">';
     } else {
-        // It's an emoji or text
         return '<span class="site-logo">' . htmlspecialchars($logo) . '</span>';
     }
 }
 
-// Function to generate Search Console URL
+/**
+ * Generate Search Console URL for domain
+ */
 function getSearchConsoleUrl($domain) {
     return 'https://search.google.com/search-console?resource_id=sc-domain%3A' . urlencode($domain);
 }
 
-// Function to generate Analytics URL
+/**
+ * Generate Analytics URL
+ */
 function getAnalyticsUrl() {
     return 'https://analytics.google.com/analytics/web/';
 }
@@ -246,7 +264,7 @@ function getAnalyticsUrl() {
                                 <tbody>
                                     <?php foreach ($websites as $website): ?>
                                         <tr>
-                                            <!-- NEW: External Links Column -->
+                                            <!-- External Links Column -->
                                             <td>
                                                 <div class="external-links">
                                                     <a href="<?php echo getSearchConsoleUrl($website['domain']); ?>" 

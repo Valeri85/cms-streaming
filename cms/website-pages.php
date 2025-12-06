@@ -1,4 +1,15 @@
 <?php
+/**
+ * Website Pages Management
+ * 
+ * REFACTORED: Now uses centralized config and functions
+ * 
+ * Changes made:
+ * 1. Removed all function definitions (now in includes/functions.php)
+ * 2. Removed all path constants (now in includes/config.php)
+ * 3. Added require_once for the new include files
+ */
+
 session_start();
 
 if (!isset($_SESSION['admin_id'])) {
@@ -6,6 +17,15 @@ if (!isset($_SESSION['admin_id'])) {
     exit;
 }
 
+// ==========================================
+// LOAD CENTRALIZED CONFIG AND FUNCTIONS
+// ==========================================
+require_once __DIR__ . '/includes/config.php';
+require_once __DIR__ . '/includes/functions.php';
+
+// ==========================================
+// PAGE VARIABLES
+// ==========================================
 $websiteId = $_GET['id'] ?? null;
 $error = '';
 $success = '';
@@ -15,372 +35,42 @@ if (!$websiteId) {
     exit;
 }
 
-$configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
-$masterIconsDir = '/var/www/u1852176/data/www/streaming/shared/icons/sports/';
-$langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
-$flagsDir = '/var/www/u1852176/data/www/streaming/shared/icons/flags/';
-$flagsUrlPath = '/shared/icons/flags/';
+// Use constants from config.php instead of hardcoded paths
+// OLD: $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
+// NEW: Use WEBSITES_CONFIG_FILE constant
 
-if (!file_exists($configFile)) {
-    die("Configuration file not found at: " . $configFile);
+// OLD: $masterIconsDir = '/var/www/u1852176/data/www/streaming/shared/icons/sports/';
+// NEW: Use SPORT_ICONS_DIR constant
+
+// OLD: $langDir = '/var/www/u1852176/data/www/streaming/config/lang/';
+// NEW: Use LANG_DIR constant
+
+// OLD: $flagsUrlPath = '/shared/icons/flags/';
+// NEW: Use FLAGS_URL_PATH constant
+
+if (!file_exists(WEBSITES_CONFIG_FILE)) {
+    die("Configuration file not found at: " . WEBSITES_CONFIG_FILE);
 }
 
 // ==========================================
-// HELPER FUNCTIONS
+// REMOVED: All function definitions
+// These are now in includes/functions.php:
+// - sanitizeSportName()
+// - getMasterIcon()
+// - sendSlackNotification()
+// - getHomeStatus()
+// - getSportStatus()
+// - getLanguageSeoStatus()
+// - loadActiveLanguages()
+// - getLanguageSeoData()
+// - saveLanguageSeoData()
 // ==========================================
-
-function sanitizeSportName($sportName) {
-    $filename = strtolower($sportName);
-    $filename = str_replace(' ', '-', $filename);
-    $filename = preg_replace('/[^a-z0-9\-]/', '', $filename);
-    $filename = preg_replace('/-+/', '-', $filename);
-    $filename = trim($filename, '-');
-    return $filename;
-}
-
-// Check if master icon exists for a sport
-function getMasterIcon($sportName, $masterIconsDir) {
-    $sanitized = sanitizeSportName($sportName);
-    $extensions = ['webp', 'svg', 'avif'];
-    
-    foreach ($extensions as $ext) {
-        $path = $masterIconsDir . $sanitized . '.' . $ext;
-        if (file_exists($path)) {
-            return [
-                'exists' => true,
-                'filename' => $sanitized . '.' . $ext,
-                'extension' => $ext
-            ];
-        }
-    }
-    
-    return [
-        'exists' => false,
-        'filename' => null,
-        'extension' => null
-    ];
-}
-
-function sendSlackNotification($sportName) {
-    $slackConfigFile = '/var/www/u1852176/data/www/streaming/config/slack-config.json';
-    if (!file_exists($slackConfigFile)) {
-        return false;
-    }
-    
-    $slackConfig = json_decode(file_get_contents($slackConfigFile), true);
-    $slackWebhookUrl = $slackConfig['webhook_url'] ?? '';
-    
-    if (empty($slackWebhookUrl)) {
-        return false;
-    }
-    
-    $message = [
-        'text' => "*New Sport Category Added*",
-        'blocks' => [
-            [
-                'type' => 'section',
-                'text' => [
-                    'type' => 'mrkdwn',
-                    'text' => "*New Sport Category:* " . $sportName . "\n\nPlease add SEO for new sport page in CMS."
-                ]
-            ]
-        ]
-    ];
-    
-    $ch = curl_init($slackWebhookUrl);
-    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($message));
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-    
-    $result = curl_exec($ch);
-    curl_close($ch);
-    
-    return $result;
-}
-
-// ==========================================
-// SEO STATUS FUNCTIONS - Returns 'green', 'orange', or 'red'
-// ==========================================
-
-// Calculate status for Home page (English)
-function getHomeStatus($pagesSeo) {
-    $seoData = $pagesSeo['home'] ?? [];
-    $hasTitle = !empty(trim($seoData['title'] ?? ''));
-    $hasDescription = !empty(trim($seoData['description'] ?? ''));
-    
-    if ($hasTitle && $hasDescription) {
-        return 'green';
-    } elseif ($hasTitle || $hasDescription) {
-        return 'orange';
-    }
-    return 'red';
-}
-
-// Calculate status for sport page (English)
-function getSportStatus($sportName, $pagesSeo) {
-    $sportSlug = strtolower(str_replace(' ', '-', $sportName));
-    $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
-    $hasTitle = !empty(trim($seoData['title'] ?? ''));
-    $hasDescription = !empty(trim($seoData['description'] ?? ''));
-    
-    if ($hasTitle && $hasDescription) {
-        return 'green';
-    } elseif ($hasTitle || $hasDescription) {
-        return 'orange';
-    }
-    return 'red';
-}
-
-// Calculate status for language-specific SEO
-function getLanguageSeoStatus($langCode, $domain, $pageType, $sportSlug, $langDir, $pagesSeo) {
-    // For English, check websites.json
-    if ($langCode === 'en') {
-        if ($pageType === 'home') {
-            return getHomeStatus($pagesSeo);
-        } else {
-            $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
-            $hasTitle = !empty(trim($seoData['title'] ?? ''));
-            $hasDescription = !empty(trim($seoData['description'] ?? ''));
-            
-            if ($hasTitle && $hasDescription) return 'green';
-            if ($hasTitle || $hasDescription) return 'orange';
-            return 'red';
-        }
-    }
-    
-    // For other languages, check language file
-    $langFile = $langDir . $langCode . '.json';
-    if (!file_exists($langFile)) {
-        return 'red';
-    }
-    
-    $langData = json_decode(file_get_contents($langFile), true);
-    if (!$langData || !isset($langData['seo'])) {
-        return 'red';
-    }
-    
-    // Normalize domain
-    $normalizedDomain = strtolower(str_replace('www.', '', trim($domain)));
-    
-    // Find domain SEO data
-    $seoData = null;
-    foreach ($langData['seo'] as $key => $value) {
-        $normalizedKey = strtolower(str_replace('www.', '', trim($key)));
-        if ($normalizedKey === $normalizedDomain) {
-            $seoData = $value;
-            break;
-        }
-    }
-    
-    if (!$seoData) {
-        return 'red';
-    }
-    
-    // Check SEO fields based on page type
-    if ($pageType === 'home') {
-        $title = $seoData['home']['title'] ?? '';
-        $description = $seoData['home']['description'] ?? '';
-    } elseif ($pageType === 'sport' && $sportSlug) {
-        $title = '';
-        $description = '';
-        if (isset($seoData['sports'])) {
-            foreach ($seoData['sports'] as $sKey => $sValue) {
-                if (strtolower($sKey) === strtolower($sportSlug)) {
-                    $title = $sValue['title'] ?? '';
-                    $description = $sValue['description'] ?? '';
-                    break;
-                }
-            }
-        }
-    } else {
-        return 'red';
-    }
-    
-    $hasTitle = !empty(trim($title));
-    $hasDescription = !empty(trim($description));
-    
-    if ($hasTitle && $hasDescription) return 'green';
-    if ($hasTitle || $hasDescription) return 'orange';
-    return 'red';
-}
-
-// ==========================================
-// LOAD ACTIVE LANGUAGES
-// ==========================================
-function loadActiveLanguages($langDir) {
-    $languages = [];
-    
-    if (is_dir($langDir)) {
-        $files = glob($langDir . '*.json');
-        
-        foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-            
-            if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
-                $code = $data['language_info']['code'];
-                $languages[$code] = [
-                    'code' => $code,
-                    'name' => $data['language_info']['name'] ?? $code,
-                    'flag_code' => $data['language_info']['flag_code'] ?? strtoupper($code)
-                ];
-            }
-        }
-    }
-    
-    // Sort: English first, then alphabetically by name
-    uksort($languages, function($a, $b) use ($languages) {
-        if ($a === 'en') return -1;
-        if ($b === 'en') return 1;
-        return strcmp($languages[$a]['name'], $languages[$b]['name']);
-    });
-    
-    return $languages;
-}
-
-// Get SEO data for a specific language and page
-function getLanguageSeoData($langCode, $domain, $pageType, $sportSlug = null, $langDir) {
-    // For English, return empty - it's handled by websites.json
-    if ($langCode === 'en') {
-        return ['title' => '', 'description' => ''];
-    }
-    
-    $langFile = $langDir . $langCode . '.json';
-    if (!file_exists($langFile)) {
-        return ['title' => '', 'description' => ''];
-    }
-    
-    $langData = json_decode(file_get_contents($langFile), true);
-    if (!$langData || !isset($langData['seo'])) {
-        return ['title' => '', 'description' => ''];
-    }
-    
-    // Normalize domain for comparison (remove www., lowercase)
-    $normalizedDomain = strtolower(str_replace('www.', '', trim($domain)));
-    
-    // Find matching domain key (case-insensitive search)
-    $seoData = null;
-    foreach ($langData['seo'] as $key => $value) {
-        $normalizedKey = strtolower(str_replace('www.', '', trim($key)));
-        if ($normalizedKey === $normalizedDomain) {
-            $seoData = $value;
-            break;
-        }
-    }
-    
-    if (!$seoData) {
-        return ['title' => '', 'description' => ''];
-    }
-    
-    if ($pageType === 'home') {
-        return [
-            'title' => $seoData['home']['title'] ?? '',
-            'description' => $seoData['home']['description'] ?? ''
-        ];
-    } elseif ($pageType === 'sport' && $sportSlug) {
-        // Also check case-insensitive for sport slug
-        $sportSeoData = null;
-        if (isset($seoData['sports'])) {
-            foreach ($seoData['sports'] as $sKey => $sValue) {
-                if (strtolower($sKey) === strtolower($sportSlug)) {
-                    $sportSeoData = $sValue;
-                    break;
-                }
-            }
-        }
-        
-        if ($sportSeoData) {
-            return [
-                'title' => $sportSeoData['title'] ?? '',
-                'description' => $sportSeoData['description'] ?? ''
-            ];
-        }
-    }
-    
-    return ['title' => '', 'description' => ''];
-}
-
-// Save SEO data for a specific language
-function saveLanguageSeoData($langCode, $domain, $pageType, $sportSlug, $title, $description, $langDir) {
-    $langFile = $langDir . $langCode . '.json';
-    
-    if (!file_exists($langFile)) {
-        return ['error' => "Language file not found: {$langCode}.json"];
-    }
-    
-    $langData = json_decode(file_get_contents($langFile), true);
-    if (!$langData) {
-        return ['error' => "Invalid JSON in language file: {$langCode}.json"];
-    }
-    
-    // Normalize domain for comparison
-    $normalizedDomain = strtolower(str_replace('www.', '', trim($domain)));
-    
-    // Initialize seo structure if not exists
-    if (!isset($langData['seo'])) {
-        $langData['seo'] = [];
-    }
-    
-    // Find existing domain key (preserve original case/format)
-    $domainKey = null;
-    foreach ($langData['seo'] as $key => $value) {
-        $normalizedKey = strtolower(str_replace('www.', '', trim($key)));
-        if ($normalizedKey === $normalizedDomain) {
-            $domainKey = $key; // Use existing key format
-            break;
-        }
-    }
-    
-    // If no existing key, use the original domain from websites.json
-    if (!$domainKey) {
-        $domainKey = $domain; // Keep original format
-        $langData['seo'][$domainKey] = [];
-    }
-    
-    // Update SEO data
-    if ($pageType === 'home') {
-        if (!isset($langData['seo'][$domainKey]['home'])) {
-            $langData['seo'][$domainKey]['home'] = [];
-        }
-        $langData['seo'][$domainKey]['home'] = [
-            'title' => $title,
-            'description' => $description
-        ];
-    } elseif ($pageType === 'sport' && $sportSlug) {
-        if (!isset($langData['seo'][$domainKey]['sports'])) {
-            $langData['seo'][$domainKey]['sports'] = [];
-        }
-        
-        // Find existing sport key (preserve original case)
-        $sportKey = $sportSlug;
-        foreach ($langData['seo'][$domainKey]['sports'] as $sKey => $sValue) {
-            if (strtolower($sKey) === strtolower($sportSlug)) {
-                $sportKey = $sKey; // Use existing key format
-                break;
-            }
-        }
-        
-        $langData['seo'][$domainKey]['sports'][$sportKey] = [
-            'title' => $title,
-            'description' => $description
-        ];
-    }
-    
-    // Save to file
-    $jsonContent = json_encode($langData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-    if (file_put_contents($langFile, $jsonContent)) {
-        return ['success' => true];
-    } else {
-        return ['error' => "Failed to save language file. Check permissions."];
-    }
-}
 
 // ==========================================
 // LOAD DATA
 // ==========================================
 
-$configContent = file_get_contents($configFile);
+$configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $websites = $configData['websites'] ?? [];
 
@@ -402,15 +92,16 @@ if (!$website) {
 
 $previewDomain = $website['domain'] ?? '';
 
-// Load active languages
-$activeLanguages = loadActiveLanguages($langDir);
+// Load active languages (function from functions.php)
+// Now uses LANG_DIR constant automatically
+$activeLanguages = loadActiveLanguages();
 
 // ==========================================
 // HANDLE POST REQUESTS
 // ==========================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $configContent = file_get_contents($configFile);
+    $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
     $configData = json_decode($configContent, true);
     $websites = $configData['websites'] ?? [];
     
@@ -438,7 +129,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $description = trim($_POST['home_seo_description'] ?? '');
             
             if ($langCode && $langCode !== 'en') {
-                $result = saveLanguageSeoData($langCode, $previewDomain, 'home', null, $title, $description, $langDir);
+                // Function from functions.php - now uses LANG_DIR automatically
+                $result = saveLanguageSeoData($langCode, $previewDomain, 'home', null, $title, $description);
                 if (isset($result['success'])) {
                     $success = "Home page SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
                 } else {
@@ -455,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!in_array($newSport, $websites[$websiteIndex]['sports_categories'])) {
                     $websites[$websiteIndex]['sports_categories'][] = $newSport;
                     $success = "Sport category '{$newSport}' added!";
+                    // Function from functions.php
                     sendSlackNotification($newSport);
                 } else {
                     $error = "Sport category '{$newSport}' already exists!";
@@ -467,7 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // UPDATE SPORT (SEO only - English default)
         if (isset($_POST['update_sport'])) {
             $sportName = $_POST['sport_name'] ?? '';
-            $sportSlug = strtolower(str_replace(' ', '-', $sportName));
+            // Function from functions.php
+            $sportSlug = sanitizeSportName($sportName);
             
             $websites[$websiteIndex]['pages_seo']['sports'][$sportSlug] = [
                 'title' => trim($_POST['seo_title'] ?? ''),
@@ -481,12 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_sport_lang'])) {
             $langCode = $_POST['lang_code'] ?? '';
             $sportName = $_POST['sport_name'] ?? '';
-            $sportSlug = strtolower(str_replace(' ', '-', $sportName));
+            $sportSlug = sanitizeSportName($sportName);
             $title = trim($_POST['seo_title'] ?? '');
             $description = trim($_POST['seo_description'] ?? '');
             
             if ($langCode && $langCode !== 'en' && $sportSlug) {
-                $result = saveLanguageSeoData($langCode, $previewDomain, 'sport', $sportSlug, $title, $description, $langDir);
+                $result = saveLanguageSeoData($langCode, $previewDomain, 'sport', $sportSlug, $title, $description);
                 if (isset($result['success'])) {
                     $success = "'{$sportName}' SEO updated for " . ($activeLanguages[$langCode]['name'] ?? $langCode) . "!";
                 } else {
@@ -510,8 +204,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $websites[$websiteIndex]['sports_categories'] = $sports;
                         
                         // Update SEO slug
-                        $oldSlug = strtolower(str_replace(' ', '-', $oldName));
-                        $newSlug = strtolower(str_replace(' ', '-', $newName));
+                        $oldSlug = sanitizeSportName($oldName);
+                        $newSlug = sanitizeSportName($newName);
                         
                         if (isset($websites[$websiteIndex]['pages_seo']['sports'][$oldSlug])) {
                             $websites[$websiteIndex]['pages_seo']['sports'][$newSlug] = $websites[$websiteIndex]['pages_seo']['sports'][$oldSlug];
@@ -541,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $websites[$websiteIndex]['sports_categories'] = array_values($sports);
                     
                     // Also remove SEO data
-                    $sportSlug = strtolower(str_replace(' ', '-', $sportToDelete));
+                    $sportSlug = sanitizeSportName($sportToDelete);
                     if (isset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug])) {
                         unset($websites[$websiteIndex]['pages_seo']['sports'][$sportSlug]);
                     }
@@ -564,10 +258,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $configData['websites'] = $websites;
         $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         
-        if (file_put_contents($configFile, $jsonContent)) {
+        if (file_put_contents(WEBSITES_CONFIG_FILE, $jsonContent)) {
             // Refresh data after save
             if (empty($error)) {
-                $configContent = file_get_contents($configFile);
+                $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
                 $configData = json_decode($configContent, true);
                 $websites = $configData['websites'] ?? [];
                 foreach ($websites as $site) {
@@ -585,8 +279,8 @@ $sports = $website['sports_categories'] ?? [];
 $pagesSeo = $website['pages_seo'] ?? [];
 $homeStatus = getHomeStatus($pagesSeo);
 
-// Get home icon from master
-$homeIconInfo = getMasterIcon('home', $masterIconsDir);
+// Get home icon from master - now uses SPORT_ICONS_DIR constant
+$homeIconInfo = getMasterIcon('home');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -647,29 +341,28 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                 <span class="status-dot <?php echo $homeStatus; ?>"></span>
                                 <span class="header-icon-small <?php echo $homeIconInfo['exists'] ? 'has-icon' : 'no-icon'; ?>">
                                     <?php if ($homeIconInfo['exists']): ?>
-                                        <img src="/shared/icons/sports/<?php echo htmlspecialchars($homeIconInfo['filename']); ?>?v=<?php echo time(); ?>" alt="Home" width="18" height="18">
+                                        <!-- Use constant for URL path -->
+                                        <img src="<?php echo SPORT_ICONS_URL_PATH . htmlspecialchars($homeIconInfo['filename']); ?>?v=<?php echo time(); ?>" alt="Home" width="18" height="18">
                                     <?php else: ?>
-                                        H
+                                        ?
                                     <?php endif; ?>
                                 </span>
-                                <span class="accordion-title">
-                                    <span class="home-badge">HOME</span>
-                                    Home Page
-                                </span>
+                                <span class="accordion-title">Home Page</span>
                             </summary>
                             
                             <div class="accordion-content">
-                                <!-- LANGUAGE TABS -->
+                                <!-- LANGUAGE TABS FOR HOME -->
                                 <div class="lang-tabs-container" data-page-type="home">
                                     <div class="lang-tabs">
                                         <?php foreach ($activeLanguages as $langCode => $langInfo): 
-                                            $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'home', null, $langDir, $pagesSeo);
+                                            $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'home', null, null, $pagesSeo);
                                         ?>
                                             <button type="button" 
                                                     class="lang-tab seo-<?php echo $langSeoStatus; ?> <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
                                                     data-lang="<?php echo htmlspecialchars($langCode); ?>"
                                                     title="<?php echo htmlspecialchars($langInfo['name']); ?>">
-                                                <img src="<?php echo $flagsUrlPath . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
+                                                <!-- Use constant for flags URL -->
+                                                <img src="<?php echo FLAGS_URL_PATH . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
                                                      alt="<?php echo htmlspecialchars($langInfo['name']); ?>" 
                                                      class="lang-tab-flag"
                                                      width="28" 
@@ -682,12 +375,12 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                     <!-- Language SEO Content Panels -->
                                     <?php foreach ($activeLanguages as $langCode => $langInfo): 
                                         $isEnglish = ($langCode === 'en');
-                                        $langSeoData = $isEnglish 
+                                        $langHomeSeoData = $isEnglish 
                                             ? ['title' => $pagesSeo['home']['title'] ?? '', 'description' => $pagesSeo['home']['description'] ?? '']
-                                            : getLanguageSeoData($langCode, $previewDomain, 'home', null, $langDir);
+                                            : getLanguageSeoData($langCode, $previewDomain, 'home');
                                     ?>
                                         <div class="lang-tab-content <?php echo $isEnglish ? 'active' : ''; ?>" data-lang="<?php echo htmlspecialchars($langCode); ?>">
-                                            <form method="POST" class="sport-form">
+                                            <form method="POST" class="home-form">
                                                 <?php if ($isEnglish): ?>
                                                     <input type="hidden" name="update_home" value="1">
                                                 <?php else: ?>
@@ -695,7 +388,6 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                     <input type="hidden" name="lang_code" value="<?php echo htmlspecialchars($langCode); ?>">
                                                 <?php endif; ?>
                                                 
-                                                <!-- SEO SECTION -->
                                                 <div class="form-section-title">SEO Settings (<?php echo htmlspecialchars($langInfo['name']); ?>)</div>
                                                 
                                                 <div class="form-group">
@@ -703,8 +395,8 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                     <input type="text" 
                                                            id="home_seo_title_<?php echo $langCode; ?>" 
                                                            name="home_seo_title" 
-                                                           value="<?php echo htmlspecialchars($langSeoData['title']); ?>" 
-                                                           placeholder="<?php echo htmlspecialchars($website['site_name']); ?> - Live Sports Streaming">
+                                                           value="<?php echo htmlspecialchars($langHomeSeoData['title']); ?>" 
+                                                           placeholder="Live Sports Streaming - <?php echo htmlspecialchars($website['site_name']); ?>">
                                                     <small>Recommended: 50-60 characters</small>
                                                 </div>
                                                 
@@ -713,11 +405,11 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                                     <textarea id="home_seo_description_<?php echo $langCode; ?>" 
                                                               name="home_seo_description" 
                                                               rows="3" 
-                                                              placeholder="Watch live sports streams..."><?php echo htmlspecialchars($langSeoData['description']); ?></textarea>
+                                                              placeholder="Watch live sports streams..."><?php echo htmlspecialchars($langHomeSeoData['description']); ?></textarea>
                                                     <small>Recommended: 150-160 characters</small>
                                                 </div>
                                                 
-                                                <button type="submit" class="btn btn-primary btn-save">Save Home Page (<?php echo strtoupper($langCode); ?>)</button>
+                                                <button type="submit" class="btn btn-primary btn-save">Save Home (<?php echo strtoupper($langCode); ?>)</button>
                                             </form>
                                         </div>
                                     <?php endforeach; ?>
@@ -727,48 +419,35 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                     </div>
                 </div>
                 
-                <!-- ADD NEW SPORT SECTION -->
-                <div class="add-sport-card">
+                <!-- ADD NEW SPORT -->
+                <div class="content-section add-sport-section">
                     <h3>Add New Sport Category</h3>
-                    <form method="POST" class="add-sport-form-wrapper">
-                        <div class="add-sport-form">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label for="new_sport_name">Sport Name *</label>
-                                <input type="text" id="new_sport_name" name="new_sport_name" placeholder="e.g., Rugby League" required>
-                            </div>
-                            
-                            <button type="submit" name="add_sport" class="btn btn-primary" style="height: fit-content;">Add Sport</button>
+                    <form method="POST" class="add-sport-form">
+                        <input type="hidden" name="add_sport" value="1">
+                        <div class="add-sport-row">
+                            <input type="text" name="new_sport_name" placeholder="Enter sport name (e.g., Basketball)" required>
+                            <button type="submit" class="btn btn-primary">+ Add Sport</button>
                         </div>
-                        <small style="display: block; margin-top: 10px; color: #666;">Icons are managed globally in <a href="icons.php" style="color: #2196f3;">Sport Icons</a></small>
                     </form>
                 </div>
                 
                 <!-- SPORTS LIST -->
-                <div class="content-section">
-                    <div class="section-header">
-                        <h2>Sport Pages (<?php echo count($sports); ?>)</h2>
-                    </div>
+                <div class="content-section sports-section">
+                    <h3>Sport Pages (<?php echo count($sports); ?>)</h3>
                     
-                    <div class="sports-count-info">
-                        <span>Drag accordions to reorder (affects left menu on website)</span>
-                    </div>
-                    
-                    <div class="pages-accordion" id="pagesAccordions">
+                    <div class="pages-accordion" id="sportsAccordion">
                         <?php foreach ($sports as $sport): 
-                            $sportSlug = strtolower(str_replace(' ', '-', $sport));
-                            
-                            // Get master icon
-                            $iconInfo = getMasterIcon($sport, $masterIconsDir);
-                            $hasIcon = $iconInfo['exists'];
-                            $iconUrl = $hasIcon ? '/shared/icons/sports/' . $iconInfo['filename'] : '';
-                            
-                            $seoData = $pagesSeo['sports'][$sportSlug] ?? [];
-                            $seoTitle = $seoData['title'] ?? '';
-                            $seoDescription = $seoData['description'] ?? '';
-                            
+                            $sportSlug = sanitizeSportName($sport);
                             $status = getSportStatus($sport, $pagesSeo);
+                            $seoTitle = $pagesSeo['sports'][$sportSlug]['title'] ?? '';
+                            $seoDescription = $pagesSeo['sports'][$sportSlug]['description'] ?? '';
+                            
+                            // Get icon info using function from functions.php
+                            $iconInfo = getMasterIcon($sport);
+                            $hasIcon = $iconInfo['exists'];
+                            $iconUrl = $hasIcon ? (SPORT_ICONS_URL_PATH . $iconInfo['filename']) : '';
                         ?>
-                            <details data-sport-name="<?php echo htmlspecialchars($sport); ?>">
+                            <details class="sport-card" data-sport="<?php echo htmlspecialchars($sport); ?>">
                                 <summary>
                                     <span class="drag-handle" title="Drag to reorder">||</span>
                                     <span class="status-dot <?php echo $status; ?>"></span>
@@ -787,13 +466,13 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                     <div class="lang-tabs-container" data-page-type="sport" data-sport="<?php echo htmlspecialchars($sport); ?>">
                                         <div class="lang-tabs">
                                             <?php foreach ($activeLanguages as $langCode => $langInfo): 
-                                                $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'sport', $sportSlug, $langDir, $pagesSeo);
+                                                $langSeoStatus = getLanguageSeoStatus($langCode, $previewDomain, 'sport', $sportSlug, null, $pagesSeo);
                                             ?>
                                                 <button type="button" 
                                                         class="lang-tab seo-<?php echo $langSeoStatus; ?> <?php echo $langCode === 'en' ? 'active' : ''; ?>" 
                                                         data-lang="<?php echo htmlspecialchars($langCode); ?>"
                                                         title="<?php echo htmlspecialchars($langInfo['name']); ?>">
-                                                    <img src="<?php echo $flagsUrlPath . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
+                                                    <img src="<?php echo FLAGS_URL_PATH . htmlspecialchars($langInfo['flag_code']); ?>.svg" 
                                                          alt="<?php echo htmlspecialchars($langInfo['name']); ?>" 
                                                          class="lang-tab-flag"
                                                          width="28" 
@@ -808,7 +487,7 @@ $homeIconInfo = getMasterIcon('home', $masterIconsDir);
                                             $isEnglish = ($langCode === 'en');
                                             $langSportSeoData = $isEnglish 
                                                 ? ['title' => $seoTitle, 'description' => $seoDescription]
-                                                : getLanguageSeoData($langCode, $previewDomain, 'sport', $sportSlug, $langDir);
+                                                : getLanguageSeoData($langCode, $previewDomain, 'sport', $sportSlug);
                                         ?>
                                             <div class="lang-tab-content <?php echo $isEnglish ? 'active' : ''; ?>" data-lang="<?php echo htmlspecialchars($langCode); ?>">
                                                 <form method="POST" class="sport-form">
