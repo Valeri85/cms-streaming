@@ -214,7 +214,7 @@ $sportsList = $englishData['sports'] ?? [];
                     <span>🌐</span> Languages
                 </a>
                 <a href="icons.php" class="nav-item">
-                    <span>🖼️</span> Sport Icons
+                    <span>🖼️</span> Icons
                 </a>
             </nav>
             

@@ -1,5 +1,5 @@
 /* ==========================================
-   SPORT ICONS MANAGEMENT PAGE
+   ICONS MANAGEMENT PAGE
    ========================================== */
 
 /* Info Box */
@@ -77,12 +77,114 @@
 	font-size: 14px;
 }
 
-/* Icons Section */
+/* ==========================================
+   HOME ICON SECTION
+   ========================================== */
+.home-icon-section {
+	margin-bottom: 30px;
+}
+
+.home-icon-section h2 {
+	border-bottom-color: #42a5f5;
+}
+
+.section-description {
+	color: #7f8c8d;
+	font-size: 14px;
+	margin-bottom: 20px;
+}
+
+.home-icon-card {
+	display: flex;
+	align-items: center;
+	gap: 25px;
+	padding: 25px;
+	background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+	border: 2px solid #42a5f5;
+	border-radius: 12px;
+}
+
+.home-icon-preview {
+	width: 80px;
+	height: 80px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+	border-radius: 16px;
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.home-icon-preview img {
+	width: 64px;
+	height: 64px;
+	object-fit: contain;
+}
+
+.home-icon-preview .placeholder-icon {
+	font-size: 40px;
+	color: white;
+	font-weight: bold;
+}
+
+.home-icon-info {
+	flex: 1;
+}
+
+.home-icon-info h4 {
+	margin: 0 0 8px 0;
+	font-size: 20px;
+	color: #1565c0;
+	font-weight: 700;
+}
+
+.home-icon-info .icon-path {
+	display: block;
+	margin-top: 5px;
+	font-size: 12px;
+	color: #7f8c8d;
+	font-family: monospace;
+}
+
+.home-icon-actions {
+	display: flex;
+	gap: 10px;
+	flex-shrink: 0;
+}
+
+.home-icon-actions .btn-upload {
+	padding: 12px 20px;
+	font-size: 14px;
+}
+
+.home-icon-actions .btn-delete {
+	padding: 12px 16px;
+	font-size: 14px;
+}
+
+/* Responsive Home Icon */
+@media (max-width: 768px) {
+	.home-icon-card {
+		flex-direction: column;
+		text-align: center;
+	}
+
+	.home-icon-actions {
+		width: 100%;
+		justify-content: center;
+	}
+}
+
+/* ==========================================
+   ICONS SECTION
+   ========================================== */
 .icons-section {
 	background: white;
 	border: 2px solid #e9ecef;
 	border-radius: 12px;
 	padding: 25px;
+	margin-bottom: 25px;
 }
 
 .icons-section h2 {

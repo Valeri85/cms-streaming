@@ -10,6 +10,8 @@
  * 
  * Or: require_once dirname(__DIR__) . '/includes/config.php';
  * (from subdirectories)
+ * 
+ * UPDATED: Added HOME_ICON constants for home page icon support
  */
 
 // ==========================================
@@ -57,6 +59,14 @@ define('FLAGS_DIR', ICONS_DIR . '/flags/');
 // URL paths (for use in HTML)
 define('FLAGS_URL_PATH', '/shared/icons/flags/');
 define('SPORT_ICONS_URL_PATH', '/shared/icons/sports/');
+define('ICONS_URL_PATH', '/shared/icons/');
+
+// ==========================================
+// HOME ICON (stored in /shared/icons/)
+// ==========================================
+
+// Home icon is stored directly in /shared/icons/home.webp (not in sports subfolder)
+define('HOME_ICON_URL_PATH', '/shared/icons/');
 
 // ==========================================
 // ALLOWED FILE TYPES

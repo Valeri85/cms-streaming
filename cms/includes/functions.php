@@ -128,6 +128,144 @@ function getIconPath($sportName, $iconsDir = null) {
     return getMasterIcon($sportName, $iconsDir);
 }
 
+/**
+ * Get home icon info from the shared icons directory
+ * Home icon is stored in /shared/icons/home.webp (not in sports subfolder)
+ * 
+ * @return array ['exists' => bool, 'filename' => string|null, 'extension' => string|null, 'path' => string|null]
+ */
+function getHomeIcon() {
+    $iconsDir = ICONS_DIR . '/';
+    $allowedExtensions = ['webp', 'svg', 'avif'];
+    
+    foreach ($allowedExtensions as $ext) {
+        $filename = 'home.' . $ext;
+        $filepath = $iconsDir . $filename;
+        
+        if (file_exists($filepath)) {
+            return [
+                'exists' => true,
+                'filename' => $filename,
+                'extension' => $ext,
+                'path' => $filepath
+            ];
+        }
+    }
+    
+    return [
+        'exists' => false,
+        'filename' => null,
+        'extension' => null,
+        'path' => null
+    ];
+}
+
+/**
+ * Handle home icon upload
+ * Home icon is stored in /shared/icons/home.webp
+ * 
+ * @param array $file The $_FILES array element
+ * @return array ['success' => bool, 'filename' => string|null, 'error' => string|null]
+ */
+function handleHomeIconUpload($file) {
+    $iconsDir = ICONS_DIR . '/';
+    $allowedTypes = ICON_ALLOWED_TYPES;
+    $allowedExtensions = ICON_ALLOWED_EXTENSIONS;
+    
+    if (!isset($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return ['error' => 'No file uploaded'];
+    }
+    
+    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+    $mimeType = finfo_file($finfo, $file['tmp_name']);
+    finfo_close($finfo);
+    
+    // Handle AVIF detection issue
+    if (strpos($file['name'], '.avif') !== false) {
+        $mimeType = 'image/avif';
+    }
+    
+    if (!in_array($mimeType, $allowedTypes)) {
+        return ['error' => 'Invalid file type. Only WEBP, SVG, AVIF allowed'];
+    }
+    
+    $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    if (!in_array($extension, $allowedExtensions)) {
+        return ['error' => 'Invalid file extension'];
+    }
+    
+    // Delete old home icons with any extension
+    foreach ($allowedExtensions as $ext) {
+        $oldFile = $iconsDir . 'home.' . $ext;
+        if (file_exists($oldFile)) {
+            unlink($oldFile);
+        }
+    }
+    
+    $filename = 'home.' . $extension;
+    $filepath = $iconsDir . $filename;
+    
+    // Process raster images (webp, avif) - resize to 64x64
+    if (in_array($extension, ['webp', 'avif'])) {
+        if (!extension_loaded('gd')) {
+            return ['error' => 'GD extension not available'];
+        }
+        
+        switch ($extension) {
+            case 'webp':
+                $sourceImage = @imagecreatefromwebp($file['tmp_name']);
+                break;
+            case 'avif':
+                if (function_exists('imagecreatefromavif')) {
+                    $sourceImage = @imagecreatefromavif($file['tmp_name']);
+                } else {
+                    return ['error' => 'AVIF format not supported'];
+                }
+                break;
+        }
+        
+        if (!$sourceImage) {
+            return ['error' => 'Failed to process image'];
+        }
+        
+        $targetImage = imagecreatetruecolor(64, 64);
+        
+        // Preserve transparency
+        imagealphablending($targetImage, false);
+        imagesavealpha($targetImage, true);
+        $transparent = imagecolorallocatealpha($targetImage, 0, 0, 0, 127);
+        imagefill($targetImage, 0, 0, $transparent);
+        
+        imagecopyresampled(
+            $targetImage, $sourceImage,
+            0, 0, 0, 0,
+            64, 64,
+            imagesx($sourceImage), imagesy($sourceImage)
+        );
+        
+        switch ($extension) {
+            case 'webp':
+                imagewebp($targetImage, $filepath, 90);
+                break;
+            case 'avif':
+                if (function_exists('imageavif')) {
+                    imageavif($targetImage, $filepath, 90);
+                }
+                break;
+        }
+        
+        imagedestroy($sourceImage);
+        imagedestroy($targetImage);
+    } else {
+        // SVG - just move the file
+        if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+            return ['error' => 'Failed to save file'];
+        }
+    }
+    
+    return ['success' => true, 'filename' => $filename];
+}
+
 // ==========================================
 // FILE UPLOAD FUNCTIONS
 // ==========================================
@@ -412,6 +550,9 @@ function generateFavicons($file, $faviconDir, $websiteId) {
 /**
  * Load all active languages from language files
  * 
+ * FIXED: Now uses 'flag' field from JSON for flag_code instead of uppercase language code
+ * This ensures Danish (da) uses DK.svg, not DA.svg
+ * 
  * @param string|null $langDir Language directory (default: LANG_DIR)
  * @return array Associative array of language code => language info
  */
@@ -428,11 +569,19 @@ function loadActiveLanguages($langDir = null) {
             
             if ($data && isset($data['language_info']) && ($data['language_info']['active'] ?? false)) {
                 $code = $data['language_info']['code'];
+                
+                // FIXED: Use 'flag' field for flag_code, fallback to uppercase language code only if 'flag' is missing
+                // The 'flag' field contains the country code (e.g., "DK" for Danish)
+                // Previously this used strtoupper($code) which gave wrong results (e.g., "DA" for Danish)
+                $flagCode = $data['language_info']['flag_code'] 
+                    ?? $data['language_info']['flag'] 
+                    ?? strtoupper($code);
+                
                 $languages[$code] = [
                     'code' => $code,
                     'name' => $data['language_info']['name'] ?? $code,
                     'flag' => $data['language_info']['flag'] ?? '🏳️',
-                    'flag_code' => $data['language_info']['flag_code'] ?? strtoupper($code)
+                    'flag_code' => $flagCode
                 ];
             }
         }

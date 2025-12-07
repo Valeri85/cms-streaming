@@ -1,8 +1,14 @@
 <?php
 /**
- * Sport Icons Management
+ * Icons Management
  * 
- * REFACTORED: Uses centralized config and functions
+ * UPDATED: 
+ * - Renamed from "Sport Icons" to "Icons"
+ * - Added Home icon upload section
+ * - Home icon stored in /shared/icons/home.webp
+ * - Sport icons stored in /shared/icons/sports/
+ * 
+ * Uses centralized config and functions
  */
 
 session_start();
@@ -31,18 +37,49 @@ if (file_exists(MASTER_SPORTS_FILE)) {
     $sports = $data['sports'] ?? [];
 }
 
+// Get home icon info
+$homeIconInfo = getHomeIcon();
+
 // ==========================================
 // HANDLE FORM SUBMISSIONS
 // ==========================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Upload icon
+    
+    // Upload HOME icon
+    if (isset($_POST['upload_home_icon'])) {
+        if (isset($_FILES['home_icon_file']) && $_FILES['home_icon_file']['size'] > 0) {
+            $result = handleHomeIconUpload($_FILES['home_icon_file']);
+            
+            if (isset($result['success'])) {
+                $success = "✅ Home icon uploaded successfully!";
+            } else {
+                $error = "❌ " . $result['error'];
+            }
+        } else {
+            $error = "❌ Please select a file to upload";
+        }
+    }
+    
+    // Delete HOME icon
+    if (isset($_POST['delete_home_icon'])) {
+        $homeIconInfo = getHomeIcon();
+        
+        if ($homeIconInfo['exists'] && file_exists($homeIconInfo['path'])) {
+            unlink($homeIconInfo['path']);
+            $success = "✅ Home icon deleted";
+            $homeIconInfo = getHomeIcon(); // Refresh
+        } else {
+            $error = "❌ No home icon found";
+        }
+    }
+    
+    // Upload SPORT icon
     if (isset($_POST['upload_icon'])) {
         $sportName = $_POST['sport_name'] ?? '';
         
         if ($sportName && isset($_FILES['icon_file']) && $_FILES['icon_file']['size'] > 0) {
-            // Use function from functions.php with constant from config.php
-            $result = handleIconUpload($_FILES['icon_file'], SPORT_ICONS_DIR, $sportName);
+            $result = handleIconUpload($_FILES['icon_file'], $sportName, SPORT_ICONS_DIR);
             
             if (isset($result['success'])) {
                 $success = "✅ Icon uploaded for '{$sportName}'";
@@ -54,12 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Delete icon
+    // Delete SPORT icon
     if (isset($_POST['delete_icon'])) {
         $sportName = $_POST['sport_name'] ?? '';
         
         if ($sportName) {
-            // Use function from functions.php with constant from config.php
             $iconInfo = getIconPath($sportName, SPORT_ICONS_DIR);
             
             if ($iconInfo['exists'] && file_exists($iconInfo['path'])) {
@@ -72,7 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Count icons
+// Refresh home icon info after potential changes
+$homeIconInfo = getHomeIcon();
+
+// Count sport icons
 $totalSports = count($sports);
 $iconsUploaded = 0;
 $iconsMissing = 0;
@@ -91,7 +130,7 @@ foreach ($sports as $sport) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sport Icons - CMS</title>
+    <title>Icons - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
     <link rel="stylesheet" href="css/icons.css">
 </head>
@@ -113,7 +152,7 @@ foreach ($sports as $sport) {
                     <span>🌐</span> Languages
                 </a>
                 <a href="icons.php" class="nav-item active">
-                    <span>🖼️</span> Sport Icons
+                    <span>🖼️</span> Icons
                 </a>
             </nav>
             
@@ -124,7 +163,7 @@ foreach ($sports as $sport) {
         
         <main class="cms-main">
             <header class="cms-header">
-                <h1>🖼️ Sport Icons</h1>
+                <h1>🖼️ Icons</h1>
             </header>
             
             <div class="cms-content">
@@ -141,46 +180,100 @@ foreach ($sports as $sport) {
                     <h3>ℹ️ Master Icons</h3>
                     <p>These icons are shared across <strong>all websites</strong>. When you update an icon here, it updates everywhere automatically.</p>
                     <p><strong>Supported formats:</strong> WebP, SVG, AVIF</p>
-                    <p><strong>Recommended size:</strong> 64x64 pixels (auto-resized on upload)</p>
+                    <p><strong>Recommended size:</strong> 64x64 pixels</p>
                 </div>
                 
-                <!-- Stats Overview -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">🏅</div>
-                        <div class="stat-info">
-                            <h3><?php echo $totalSports; ?></h3>
-                            <p>Total Sports</p>
-                        </div>
-                    </div>
+                <!-- ==========================================
+                     HOME PAGE ICON SECTION
+                     ========================================== -->
+                <div class="icons-section home-icon-section">
+                    <h2>🏠 Home Page Icon</h2>
+                    <p class="section-description">This icon appears on the Home Page in all websites.</p>
                     
-                    <div class="stat-card stat-success">
-                        <div class="stat-icon">✅</div>
-                        <div class="stat-info">
-                            <h3><?php echo $iconsUploaded; ?></h3>
-                            <p>Icons Uploaded</p>
+                    <div class="home-icon-card">
+                        <div class="home-icon-preview">
+                            <?php if ($homeIconInfo['exists']): ?>
+                                <img src="<?php echo HOME_ICON_URL_PATH . htmlspecialchars($homeIconInfo['filename']); ?>?v=<?php echo time(); ?>" 
+                                     alt="Home Icon"
+                                     width="64"
+                                     height="64">
+                            <?php else: ?>
+                                <span class="placeholder-icon">?</span>
+                            <?php endif; ?>
                         </div>
-                    </div>
-                    
-                    <div class="stat-card <?php echo $iconsMissing > 0 ? 'stat-warning' : ''; ?>">
-                        <div class="stat-icon">⚠️</div>
-                        <div class="stat-info">
-                            <h3><?php echo $iconsMissing; ?></h3>
-                            <p>Missing Icons</p>
+                        
+                        <div class="home-icon-info">
+                            <h4>Home</h4>
+                            <?php if ($homeIconInfo['exists']): ?>
+                                <span class="icon-format"><?php echo strtoupper($homeIconInfo['extension']); ?></span>
+                                <span class="icon-path">/shared/icons/<?php echo htmlspecialchars($homeIconInfo['filename']); ?></span>
+                            <?php else: ?>
+                                <span class="icon-missing">No icon uploaded</span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="home-icon-actions">
+                            <form method="POST" enctype="multipart/form-data" class="upload-form">
+                                <input type="file" 
+                                       name="home_icon_file" 
+                                       id="home_icon_file" 
+                                       class="file-input" 
+                                       accept=".webp,.svg,.avif"
+                                       onchange="this.form.submit()">
+                                <input type="hidden" name="upload_home_icon" value="1">
+                                <label for="home_icon_file" class="btn btn-upload">
+                                    <?php echo $homeIconInfo['exists'] ? '🔄 Replace Icon' : '📤 Upload Icon'; ?>
+                                </label>
+                            </form>
+                            
+                            <?php if ($homeIconInfo['exists']): ?>
+                            <form method="POST" class="delete-form" onsubmit="return confirm('Delete home icon?');">
+                                <input type="hidden" name="delete_home_icon" value="1">
+                                <button type="submit" class="btn btn-delete">🗑️ Delete</button>
+                            </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Icons Grid -->
+                <!-- ==========================================
+                     SPORT ICONS SECTION
+                     ========================================== -->
                 <div class="icons-section">
-                    <h2>All Sport Icons</h2>
+                    <h2>🏅 Sport Icons</h2>
                     
+                    <!-- Stats Overview -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🏅</div>
+                            <div class="stat-info">
+                                <h3><?php echo $totalSports; ?></h3>
+                                <p>Total Sports</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card stat-success">
+                            <div class="stat-icon">✅</div>
+                            <div class="stat-info">
+                                <h3><?php echo $iconsUploaded; ?></h3>
+                                <p>Icons Uploaded</p>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card <?php echo $iconsMissing > 0 ? 'stat-warning' : ''; ?>">
+                            <div class="stat-icon">⚠️</div>
+                            <div class="stat-info">
+                                <h3><?php echo $iconsMissing; ?></h3>
+                                <p>Missing Icons</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Icons Grid -->
                     <div class="icons-grid">
                         <?php foreach ($sports as $sport): 
-                            // Use functions from functions.php
                             $iconInfo = getIconPath($sport, SPORT_ICONS_DIR);
                             $hasIcon = $iconInfo['exists'];
-                            // Use constant from config.php for URL path
                             $iconUrl = $hasIcon ? (SPORT_ICONS_URL_PATH . $iconInfo['filename']) : null;
                             $sanitizedName = sanitizeSportName($sport);
                         ?>
@@ -207,11 +300,11 @@ foreach ($sports as $sport) {
                                 <form method="POST" enctype="multipart/form-data" class="upload-form">
                                     <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
                                     <input type="file" 
-                                            name="icon_file" 
-                                            id="file_<?php echo $sanitizedName; ?>" 
-                                            class="file-input" 
-                                            accept=".webp,.svg,.avif"
-                                            onchange="this.form.submit()">
+                                           name="icon_file" 
+                                           id="file_<?php echo $sanitizedName; ?>" 
+                                           class="file-input" 
+                                           accept=".webp,.svg,.avif"
+                                           onchange="this.form.submit()">
                                     <input type="hidden" name="upload_icon" value="1">
                                     <label for="file_<?php echo $sanitizedName; ?>" class="btn btn-sm btn-upload">
                                         <?php echo $hasIcon ? '🔄 Replace' : '📤 Upload'; ?>
@@ -221,7 +314,8 @@ foreach ($sports as $sport) {
                                 <?php if ($hasIcon): ?>
                                 <form method="POST" class="delete-form" onsubmit="return confirm('Delete icon for <?php echo htmlspecialchars($sport); ?>?');">
                                     <input type="hidden" name="sport_name" value="<?php echo htmlspecialchars($sport); ?>">
-                                    <button type="submit" name="delete_icon" class="btn btn-sm btn-delete">🗑️</button>
+                                    <input type="hidden" name="delete_icon" value="1">
+                                    <button type="submit" class="btn btn-sm btn-delete">🗑️</button>
                                 </form>
                                 <?php endif; ?>
                             </div>
