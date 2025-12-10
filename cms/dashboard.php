@@ -2,7 +2,11 @@
 /**
  * CMS Dashboard
  * 
- * REFACTORED: Uses centralized config and functions
+ * UPDATED: Filters websites by ownership (user's own + shared)
+ * UPDATED: Uses 'user_id' session instead of 'admin_id'
+ * UPDATED: Uses 'users' array instead of 'admins'
+ * 
+ * Location: /var/www/u1852176/data/www/watchlivesport.online/dashboard.php
  */
 
 session_start();
@@ -13,8 +17,8 @@ session_start();
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['admin_id'])) {
+// Check if user is logged in (NEW: user_id instead of admin_id)
+if (!isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
@@ -26,34 +30,32 @@ if (!file_exists(WEBSITES_CONFIG_FILE)) {
 
 $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
-$websites = $configData['websites'] ?? [];
-$admins = $configData['admins'] ?? [];
+$allWebsites = $configData['websites'] ?? [];
 
-// Find current admin
-$admin = null;
-foreach ($admins as $a) {
-    if ($a['id'] == $_SESSION['admin_id']) {
-        $admin = $a;
-        break;
-    }
-}
+// Get users (NEW: 'users' instead of 'admins')
+$users = $configData['users'] ?? $configData['admins'] ?? [];
 
-if (!$admin) {
+// Find current user (NEW: using getCurrentUser function)
+$user = getCurrentUser();
+
+if (!$user) {
     session_destroy();
     header('Location: login.php');
     exit;
 }
 
+// ==========================================
+// FILTER WEBSITES FOR CURRENT USER
+// Only show: user's own websites + shared websites
+// ==========================================
+$websites = filterWebsitesForUser($allWebsites);
+$websiteCounts = getWebsiteCountsForUser($allWebsites);
+
 // Check for success messages
-$successMessage = '';
-if (isset($_SESSION['delete_success'])) {
-    $successMessage = $_SESSION['delete_success'];
-    unset($_SESSION['delete_success']);
-}
+$successMessage = getFlashMessage('success');
 
 // ==========================================
 // DASHBOARD-SPECIFIC FUNCTIONS
-// (These are specific to dashboard and don't need to be in shared functions.php)
 // ==========================================
 
 /**
@@ -77,9 +79,15 @@ function getSearchConsoleUrl($domain) {
 }
 
 /**
- * Generate Analytics URL
+ * Get Google Analytics URL for a website
+ * Uses the stored analytics_url if available
  */
-function getAnalyticsUrl() {
+function getAnalyticsUrl($website) {
+    // If website has a specific analytics URL stored, use it
+    if (!empty($website['analytics_url'])) {
+        return $website['analytics_url'];
+    }
+    // Fallback to generic analytics page
     return 'https://analytics.google.com/analytics/web/';
 }
 ?>
@@ -88,17 +96,28 @@ function getAnalyticsUrl() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CMS Dashboard</title>
+    <title>Dashboard - CMS</title>
     <link rel="stylesheet" href="cms-style.css">
-    <link rel="stylesheet" href="css/dashboard.css">
     <style>
-        /* External Links Icons */
-        .external-links {
-            display: flex;
-            gap: 8px;
-            align-items: center;
+        /* Owner badge styles */
+        .owner-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .owner-badge.own {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .owner-badge.shared {
+            background: #f3e5f5;
+            color: #7b1fa2;
         }
         
+        /* External link icon styles */
         .external-link-icon {
             display: inline-flex;
             align-items: center;
@@ -107,65 +126,63 @@ function getAnalyticsUrl() {
             height: 28px;
             border-radius: 6px;
             text-decoration: none;
-            font-size: 14px;
-            transition: all 0.2s ease;
+            transition: all 0.2s;
             position: relative;
         }
-        
         .external-link-icon:hover {
-            transform: scale(1.1);
+            transform: translateY(-2px);
         }
-        
-        .external-link-icon.gsc {
-            background: linear-gradient(135deg, #4285f4, #34a853);
-            color: white;
+        .external-link-icon.analytics {
+            background: #fff3e0;
+            color: #e65100;
         }
-        
-        .external-link-icon.ga {
-            background: linear-gradient(135deg, #f9ab00, #e37400);
-            color: white;
+        .external-link-icon.analytics:hover {
+            background: #ffe0b2;
         }
-        
-        .external-link-icon.ga.disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            opacity: 0.5;
+        .external-link-icon.search-console {
+            background: #e8f5e9;
+            color: #2e7d32;
         }
-        
-        .external-link-icon.ga.disabled:hover {
-            transform: none;
+        .external-link-icon.search-console:hover {
+            background: #c8e6c9;
+        }
+        .external-link-icon.visit {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .external-link-icon.visit:hover {
+            background: #bbdefb;
         }
         
         /* Tooltip */
         .external-link-icon::after {
             content: attr(title);
             position: absolute;
-            bottom: 100%;
+            bottom: calc(100% + 5px);
             left: 50%;
             transform: translateX(-50%);
-            padding: 4px 8px;
             background: #333;
             color: white;
-            font-size: 11px;
+            padding: 4px 8px;
             border-radius: 4px;
+            font-size: 11px;
             white-space: nowrap;
             opacity: 0;
             visibility: hidden;
             transition: all 0.2s;
-            pointer-events: none;
         }
-        
         .external-link-icon:hover::after {
             opacity: 1;
             visibility: visible;
             bottom: calc(100% + 5px);
         }
         
-        /* Update table layout */
-        .data-table th:first-child,
-        .data-table td:first-child {
-            width: 80px;
-            text-align: center;
+        /* Stats card for ownership */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
     </style>
 </head>
@@ -190,10 +207,14 @@ function getAnalyticsUrl() {
                 <a href="icons.php" class="nav-item">
                     <span>🖼️</span> Icons
                 </a>
+                <a href="users.php" class="nav-item">
+                    <span>👥</span> Users
+                </a>
             </nav>
             
             <div class="cms-user">
-                <p><strong><?php echo htmlspecialchars($admin['username']); ?></strong></p>
+                <p><strong><?php echo htmlspecialchars($user['username']); ?></strong></p>
+                <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px;">My Profile</a>
                 <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
             </div>
         </aside>
@@ -214,8 +235,24 @@ function getAnalyticsUrl() {
                     <div class="stat-card">
                         <div class="stat-icon">🌐</div>
                         <div class="stat-info">
-                            <h3><?php echo count($websites); ?></h3>
+                            <h3><?php echo $websiteCounts['total']; ?></h3>
                             <p>Total Websites</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">👤</div>
+                        <div class="stat-info">
+                            <h3><?php echo $websiteCounts['own']; ?></h3>
+                            <p>My Websites</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-info">
+                            <h3><?php echo $websiteCounts['shared']; ?></h3>
+                            <p>Shared Websites</p>
                         </div>
                     </div>
                     
@@ -223,15 +260,7 @@ function getAnalyticsUrl() {
                         <div class="stat-icon">✅</div>
                         <div class="stat-info">
                             <h3><?php echo count(array_filter($websites, fn($w) => $w['status'] === 'active')); ?></h3>
-                            <p>Active Websites</p>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card">
-                        <div class="stat-icon">👤</div>
-                        <div class="stat-info">
-                            <h3><?php echo htmlspecialchars($admin['username']); ?></h3>
-                            <p>Logged in as</p>
+                            <p>Active</p>
                         </div>
                     </div>
                 </div>
@@ -254,60 +283,67 @@ function getAnalyticsUrl() {
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th>Tools</th>
+                                        <th style="width: 80px;">Tools</th>
                                         <th>Domain</th>
                                         <th>Site Name</th>
+                                        <th>Owner</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($websites as $website): ?>
+                                        <?php 
+                                        $domain = $website['domain'];
+                                        $gaId = $website['google_analytics_id'] ?? '';
+                                        $owner = $website['owner'] ?? 'shared';
+                                        $isOwn = isWebsiteOwner($website);
+                                        ?>
                                         <tr>
-                                            <!-- External Links Column -->
                                             <td>
-                                                <div class="external-links">
-                                                    <a href="<?php echo getSearchConsoleUrl($website['domain']); ?>" 
+                                                <div style="display: flex; gap: 4px;">
+                                                    <!-- Google Analytics (only if has analytics ID) -->
+                                                    <?php if ($gaId): ?>
+                                                        <a href="<?php echo htmlspecialchars(getAnalyticsUrl($website)); ?>" 
+                                                           target="_blank" 
+                                                           class="external-link-icon analytics"
+                                                           title="Google Analytics">
+                                                            📊
+                                                        </a>
+                                                    <?php endif; ?>
+                                                    
+                                                    <!-- Search Console -->
+                                                    <a href="<?php echo getSearchConsoleUrl($domain); ?>" 
                                                        target="_blank" 
-                                                       class="external-link-icon gsc" 
+                                                       class="external-link-icon search-console"
                                                        title="Search Console">
                                                         🔍
                                                     </a>
-                                                    <?php if (!empty($website['google_analytics_id'])): ?>
-                                                        <a href="<?php echo getAnalyticsUrl(); ?>" 
-                                                           target="_blank" 
-                                                           class="external-link-icon ga" 
-                                                           title="Analytics: <?php echo htmlspecialchars($website['google_analytics_id']); ?>">
-                                                            📊
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <span class="external-link-icon ga disabled" 
-                                                              title="No Analytics ID configured">
-                                                            📊
-                                                        </span>
-                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                             <td>
-                                                <a href="https://<?php echo htmlspecialchars($website['domain']); ?>" target="_blank" class="domain-link">
-                                                    <?php echo htmlspecialchars($website['domain']); ?>
+                                                <?php echo renderLogoPreview($website['logo'] ?? ''); ?>
+                                                <a href="https://<?php echo htmlspecialchars($domain); ?>" 
+                                                   target="_blank" 
+                                                   style="color: #333; text-decoration: none; font-weight: 600;">
+                                                    <?php echo htmlspecialchars($domain); ?>
                                                 </a>
                                             </td>
+                                            <td><?php echo htmlspecialchars($website['site_name']); ?></td>
                                             <td>
-                                                <div class="logo-with-name">
-                                                    <?php echo renderLogoPreview($website['logo']); ?>
-                                                    <span><?php echo htmlspecialchars($website['site_name']); ?></span>
-                                                </div>
+                                                <span class="owner-badge <?php echo $owner === 'shared' ? 'shared' : 'own'; ?>">
+                                                    <?php echo $owner === 'shared' ? '👥 Shared' : '👤 ' . getOwnerDisplayName($owner); ?>
+                                                </span>
                                             </td>
                                             <td>
-                                                <span class="badge badge-<?php echo $website['status']; ?>">
+                                                <span class="status-badge <?php echo $website['status']; ?>">
                                                     <?php echo ucfirst($website['status']); ?>
                                                 </span>
                                             </td>
                                             <td>
                                                 <div class="action-buttons">
                                                     <a href="website-edit.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Settings</a>
-                                                    <a href="website-pages.php?id=<?php echo $website['id']; ?>" class="btn btn-sm" style="background: #9b59b6; color: white;">Pages</a>
+                                                    <a href="website-pages.php?id=<?php echo $website['id']; ?>" class="btn btn-sm">Pages</a>
                                                     <a href="website-delete.php?id=<?php echo $website['id']; ?>" class="btn btn-sm btn-danger">Delete</a>
                                                 </div>
                                             </td>

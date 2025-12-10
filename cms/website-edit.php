@@ -13,10 +13,14 @@ session_start();
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 
-if (!isset($_SESSION['admin_id'])) {
+// Check login (support both old and new session)
+if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
+
+// Get current user for owner display
+$currentUser = getCurrentUser();
 
 $websiteId = $_GET['id'] ?? null;
 $error = '';
@@ -75,7 +79,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // Get analytics and custom head code
         $googleAnalyticsId = trim($_POST['google_analytics_id'] ?? '');
+        $analyticsUrl = trim($_POST['analytics_url'] ?? '');
         $customHeadCode = $_POST['custom_head_code'] ?? '';
+        
+        // Get owner selection (NEW)
+        $ownerType = $_POST['owner_type'] ?? 'mine';
+        if ($ownerType === 'shared') {
+            $owner = 'shared';
+        } else {
+            $owner = getCurrentUserOwner() ?? 'shared';
+        }
         
         // Get enabled languages (checkboxes)
         $postedEnabledLanguages = $_POST['enabled_languages'] ?? [];
@@ -154,7 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // Save analytics and custom head code
                 $websites[$websiteIndex]['google_analytics_id'] = $googleAnalyticsId;
+                $websites[$websiteIndex]['analytics_url'] = $analyticsUrl;
                 $websites[$websiteIndex]['custom_head_code'] = $customHeadCode;
+                
+                // Save owner
+                $websites[$websiteIndex]['owner'] = $owner;
                 
                 // Save enabled languages
                 $websites[$websiteIndex]['enabled_languages'] = array_values($postedEnabledLanguages);
@@ -194,6 +211,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Check if favicon exists - use constant from config.php
 $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website['favicon'] . '/favicon-32x32.png');
+
+// Get current owner info
+$currentOwner = $website['owner'] ?? 'shared';
+$isShared = ($currentOwner === 'shared');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -385,6 +406,180 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
         .btn-cancel-modal:hover {
             background: #dee2e6;
         }
+        
+        /* Owner selection styles */
+        .owner-selection {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .owner-option {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .owner-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        .owner-option.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+        .owner-option input[type="radio"] {
+            display: none;
+        }
+        .owner-option .icon {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        .owner-option .label {
+            font-weight: 600;
+            color: #333;
+        }
+        .owner-option .desc {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        /* Analytics Section Styles */
+        .analytics-section {
+            background: linear-gradient(135deg, #fff9e6 0%, #fff 100%);
+            border: 1px solid #ffe0b2;
+        }
+        
+        .analytics-section h3 {
+            color: #e65100;
+        }
+        
+        .analytics-section .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .analytics-section .input-with-icon {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .analytics-section .input-with-icon input {
+            flex: 1;
+        }
+        
+        .analytics-section .input-icon-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #f9ab00, #e37400);
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .analytics-section .input-icon-link:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(249, 171, 0, 0.4);
+        }
+        
+        .analytics-section .quick-links {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        
+        .analytics-section .quick-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .analytics-section .quick-link-btn:nth-child(2) {
+            background: linear-gradient(135deg, #f9ab00, #e37400);
+        }
+        
+        .analytics-section .quick-link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Custom Head Code Section Styles */
+        .custom-code-section {
+            background: linear-gradient(135deg, #fce4ec 0%, #fff 100%);
+            border: 1px solid #f8bbd9;
+            margin-top: 20px;
+        }
+        
+        .custom-code-section h3 {
+            color: #c2185b;
+        }
+        
+        .custom-code-section .section-description {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .custom-code-section textarea {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+            font-size: 13px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 150px;
+        }
+        
+        .custom-code-section textarea::placeholder {
+            color: #6a6a6a;
+        }
+        
+        .custom-code-section textarea:focus {
+            outline: none;
+            border-color: #c2185b;
+            box-shadow: 0 0 0 3px rgba(194, 24, 91, 0.1);
+        }
+        
+        .custom-code-section .warning-text {
+            display: block;
+            margin-top: 10px;
+            padding: 10px 15px;
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            border-radius: 0 6px 6px 0;
+            color: #e65100;
+            font-size: 13px;
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-section .form-row {
+                grid-template-columns: 1fr;
+            }
+            .analytics-section .quick-links {
+                flex-direction: column;
+            }
+        }
     </style>
 </head>
 <body>
@@ -407,9 +602,16 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
                 <a href="icons.php" class="nav-item">
                     <span>🖼️</span> Icons
                 </a>
+                <a href="users.php" class="nav-item">
+                    <span>👥</span> Users
+                </a>
             </nav>
             
             <div class="cms-user">
+                <?php if ($currentUser): ?>
+                    <p style="margin-bottom: 8px;"><strong><?php echo htmlspecialchars($currentUser['username']); ?></strong></p>
+                    <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px; display: block;">My Profile</a>
+                <?php endif; ?>
                 <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
             </div>
         </aside>
@@ -434,6 +636,28 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
                 <?php endif; ?>
                 
                 <form method="POST" enctype="multipart/form-data" class="cms-form" id="websiteEditForm">
+                    <!-- Owner Selection Section -->
+                    <div class="form-section">
+                        <h3>👤 Website Owner</h3>
+                        <p style="color: #666; margin-bottom: 15px;">Who should have access to this website?</p>
+                        
+                        <div class="owner-selection">
+                            <label class="owner-option <?php echo !$isShared ? 'selected' : ''; ?>" id="owner-mine">
+                                <input type="radio" name="owner_type" value="mine" <?php echo !$isShared ? 'checked' : ''; ?>>
+                                <div class="icon">👤</div>
+                                <div class="label">My Website</div>
+                                <div class="desc">Only you can see and manage</div>
+                            </label>
+                            
+                            <label class="owner-option <?php echo $isShared ? 'selected' : ''; ?>" id="owner-shared">
+                                <input type="radio" name="owner_type" value="shared" <?php echo $isShared ? 'checked' : ''; ?>>
+                                <div class="icon">👥</div>
+                                <div class="label">Shared</div>
+                                <div class="desc">All users can see and manage</div>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <div class="form-section">
                         <h3>Basic Information</h3>
                         
@@ -622,17 +846,33 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
                             </div>
                             
                             <div class="form-group">
-                                <label>Quick Links</label>
-                                <div class="quick-links">
-                                    <a href="https://search.google.com/search-console?resource_id=sc-domain%3A<?php echo urlencode($website['domain']); ?>" 
+                                <label for="analytics_url">Analytics Dashboard URL</label>
+                                <input type="url" id="analytics_url" name="analytics_url" 
+                                       value="<?php echo htmlspecialchars($website['analytics_url'] ?? ''); ?>" 
+                                       placeholder="https://analytics.google.com/analytics/web/#/p123456789/reports/"
+                                       style="width: 100%;">
+                                <small>Paste the full URL from your Analytics dashboard for quick access</small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label>Quick Links</label>
+                            <div class="quick-links">
+                                <a href="https://search.google.com/search-console?resource_id=sc-domain%3A<?php echo urlencode($website['domain']); ?>" 
+                                   target="_blank" class="quick-link-btn">
+                                    🔍 Search Console
+                                </a>
+                                <?php if (!empty($website['analytics_url'])): ?>
+                                    <a href="<?php echo htmlspecialchars($website['analytics_url']); ?>" 
                                        target="_blank" class="quick-link-btn">
-                                        🔍 Search Console
+                                        📊 Analytics Dashboard
                                     </a>
+                                <?php else: ?>
                                     <a href="https://analytics.google.com/analytics/web/" 
                                        target="_blank" class="quick-link-btn">
-                                        📊 Analytics
+                                        📊 Analytics (General)
                                     </a>
-                                </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -644,7 +884,7 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
                         
                         <div class="form-group">
                             <label for="custom_head_code">Custom &lt;head&gt; Code</label>
-                            <textarea id="custom_head_code" name="custom_head_code" rows="8" 
+                            <textarea id="custom_head_code" name="custom_head_code" rows="10" 
                                       placeholder="<!-- Paste your AdSense, tracking pixels, or other head code here -->"><?php echo htmlspecialchars($website['custom_head_code'] ?? ''); ?></textarea>
                             <small class="warning-text">⚠️ Be careful! Invalid code can break your website. Test after saving.</small>
                         </div>
@@ -676,6 +916,14 @@ $hasFavicon = !empty($website['favicon']) && file_exists(FAVICONS_DIR . $website
     
     <script src="js/website-edit.js"></script>
     <script>
+        // Owner selection toggle
+        document.querySelectorAll('.owner-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.owner-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+        
         // Favicon file preview
         document.getElementById('favicon_file')?.addEventListener('change', function(e) {
             const file = e.target.files[0];

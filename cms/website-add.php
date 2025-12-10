@@ -13,10 +13,14 @@ session_start();
 require_once __DIR__ . '/includes/config.php';
 require_once __DIR__ . '/includes/functions.php';
 
-if (!isset($_SESSION['admin_id'])) {
+// Check login (support both old and new session)
+if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
+
+// Get current user for owner assignment
+$currentUser = getCurrentUser();
 
 $error = '';
 $success = '';
@@ -142,6 +146,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $language = trim($_POST['language'] ?? 'en');
     $status = $_POST['status'] ?? 'active';
     
+    // Get owner selection
+    $ownerType = $_POST['owner_type'] ?? 'mine';
+    if ($ownerType === 'shared') {
+        $owner = 'shared';
+    } else {
+        $owner = getCurrentUserOwner() ?? 'shared';
+    }
+    
     $logo = '';
     
     if ($siteName && $domain) {
@@ -205,7 +217,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'sidebar_content' => '',
                         'status' => $status,
                         'sports_categories' => $sportsList,
-                        'enabled_languages' => ['en']
+                        'enabled_languages' => ['en'],
+                        'owner' => $owner,
+                        'google_analytics_id' => '',
+                        'analytics_url' => '',
+                        'custom_head_code' => ''
                     ];
                     
                     $websites[] = $newWebsite;
@@ -262,9 +278,16 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                 <a href="icons.php" class="nav-item">
                     <span>🖼️</span> Icons
                 </a>
+                <a href="users.php" class="nav-item">
+                    <span>👥</span> Users
+                </a>
             </nav>
             
             <div class="cms-user">
+                <?php if ($currentUser): ?>
+                    <p style="margin-bottom: 8px;"><strong><?php echo htmlspecialchars($currentUser['username']); ?></strong></p>
+                    <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px; display: block;">My Profile</a>
+                <?php endif; ?>
                 <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
             </div>
         </aside>
@@ -288,6 +311,28 @@ $currentSportsCount = count(getSportsListForNewWebsite());
                 <?php endif; ?>
                 
                 <form method="POST" enctype="multipart/form-data" class="cms-form">
+                    <!-- Owner Selection Section -->
+                    <div class="form-section">
+                        <h3>👤 Website Owner</h3>
+                        <p style="color: #666; margin-bottom: 15px;">Who should have access to this website?</p>
+                        
+                        <div class="owner-selection" style="display: flex; gap: 15px;">
+                            <label class="owner-option selected" style="flex: 1; padding: 15px; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; text-align: center; background: #f0f4ff;">
+                                <input type="radio" name="owner_type" value="mine" checked style="display: none;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">👤</div>
+                                <div style="font-weight: 600; color: #333;">My Website</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px;">Only you can see and manage</div>
+                            </label>
+                            
+                            <label class="owner-option" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center;">
+                                <input type="radio" name="owner_type" value="shared" style="display: none;">
+                                <div style="font-size: 24px; margin-bottom: 8px;">👥</div>
+                                <div style="font-weight: 600; color: #333;">Shared</div>
+                                <div style="font-size: 12px; color: #666; margin-top: 4px;">All users can see and manage</div>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <div class="form-section">
                         <h3>Basic Information</h3>
                         
@@ -386,5 +431,18 @@ $currentSportsCount = count(getSportsListForNewWebsite());
     </div>
     
     <script src="js/website-add.js"></script>
+    <script>
+        // Owner selection toggle
+        document.querySelectorAll('.owner-option').forEach(option => {
+            option.addEventListener('click', function() {
+                document.querySelectorAll('.owner-option').forEach(o => {
+                    o.style.borderColor = '#ddd';
+                    o.style.background = 'white';
+                });
+                this.style.borderColor = '#667eea';
+                this.style.background = '#f0f4ff';
+            });
+        });
+    </script>
 </body>
 </html>

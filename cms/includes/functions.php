@@ -1017,3 +1017,315 @@ function getSportsListForNewWebsite() {
     
     return $data['sports'] ?? [];
 }
+// ==========================================
+// USER MANAGEMENT FUNCTIONS (NEW - Dec 2024)
+// Added for multi-user support with ownership
+// ==========================================
+
+/**
+ * Load configuration data from websites.json
+ * 
+ * @return array|null Config data or null on failure
+ */
+function loadConfigData() {
+    if (!defined('WEBSITES_CONFIG_FILE') || !file_exists(WEBSITES_CONFIG_FILE)) {
+        return null;
+    }
+    
+    $content = file_get_contents(WEBSITES_CONFIG_FILE);
+    return json_decode($content, true);
+}
+
+/**
+ * Save configuration data to websites.json
+ * 
+ * @param array $configData Config data to save
+ * @return bool True on success
+ */
+function saveConfigData($configData) {
+    if (!defined('WEBSITES_CONFIG_FILE')) {
+        return false;
+    }
+    
+    $jsonContent = json_encode($configData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return file_put_contents(WEBSITES_CONFIG_FILE, $jsonContent) !== false;
+}
+
+/**
+ * Get current logged-in user
+ * 
+ * @return array|null User data or null if not logged in
+ */
+function getCurrentUser() {
+    if (!isset($_SESSION['user_id'])) {
+        return null;
+    }
+    
+    $configData = loadConfigData();
+    if (!$configData) {
+        return null;
+    }
+    
+    // Support both old 'admins' and new 'users' structure
+    $users = $configData['users'] ?? $configData['admins'] ?? [];
+    
+    foreach ($users as $user) {
+        if ($user['id'] == $_SESSION['user_id']) {
+            return $user;
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Get user by ID
+ * 
+ * @param int $userId User ID
+ * @return array|null User data or null if not found
+ */
+function getUserById($userId) {
+    $configData = loadConfigData();
+    if (!$configData) {
+        return null;
+    }
+    
+    $users = $configData['users'] ?? $configData['admins'] ?? [];
+    
+    foreach ($users as $user) {
+        if ($user['id'] == $userId) {
+            return $user;
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Get all users
+ * 
+ * @return array Array of users
+ */
+function getAllUsers() {
+    $configData = loadConfigData();
+    if (!$configData) {
+        return [];
+    }
+    
+    return $configData['users'] ?? $configData['admins'] ?? [];
+}
+
+/**
+ * Check if username already exists (excluding current user)
+ * 
+ * @param string $username Username to check
+ * @param int|null $excludeUserId User ID to exclude from check (for editing)
+ * @return bool True if username exists
+ */
+function usernameExists($username, $excludeUserId = null) {
+    $users = getAllUsers();
+    
+    foreach ($users as $user) {
+        if (strtolower($user['username']) === strtolower($username)) {
+            if ($excludeUserId !== null && $user['id'] == $excludeUserId) {
+                continue;
+            }
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
+ * Generate next user ID
+ * 
+ * @return int Next available user ID
+ */
+function getNextUserId() {
+    $users = getAllUsers();
+    
+    if (empty($users)) {
+        return 1;
+    }
+    
+    $maxId = 0;
+    foreach ($users as $user) {
+        if ($user['id'] > $maxId) {
+            $maxId = $user['id'];
+        }
+    }
+    
+    return $maxId + 1;
+}
+
+/**
+ * Get owner identifier for current user
+ * 
+ * @return string|null Owner identifier (e.g., "user_1") or null if not logged in
+ */
+function getCurrentUserOwner() {
+    if (!isset($_SESSION['user_id'])) {
+        return null;
+    }
+    
+    return 'user_' . $_SESSION['user_id'];
+}
+
+/**
+ * Check if current user can access a website
+ * 
+ * @param array $website Website data
+ * @return bool True if user can access
+ */
+function canAccessWebsite($website) {
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+    
+    $owner = $website['owner'] ?? 'shared';
+    $currentUserOwner = getCurrentUserOwner();
+    
+    return ($owner === $currentUserOwner || $owner === 'shared');
+}
+
+/**
+ * Filter websites for current user
+ * 
+ * @param array $websites All websites
+ * @return array Filtered websites
+ */
+function filterWebsitesForUser($websites) {
+    if (!isset($_SESSION['user_id'])) {
+        return [];
+    }
+    
+    $currentUserOwner = getCurrentUserOwner();
+    $filtered = [];
+    
+    foreach ($websites as $website) {
+        $owner = $website['owner'] ?? 'shared';
+        
+        if ($owner === $currentUserOwner || $owner === 'shared') {
+            $filtered[] = $website;
+        }
+    }
+    
+    return $filtered;
+}
+
+/**
+ * Get website counts for current user
+ * 
+ * @param array $websites All websites
+ * @return array ['own' => count, 'shared' => count, 'total' => count]
+ */
+function getWebsiteCountsForUser($websites) {
+    if (!isset($_SESSION['user_id'])) {
+        return ['own' => 0, 'shared' => 0, 'total' => 0];
+    }
+    
+    $currentUserOwner = getCurrentUserOwner();
+    $own = 0;
+    $shared = 0;
+    
+    foreach ($websites as $website) {
+        $owner = $website['owner'] ?? 'shared';
+        
+        if ($owner === $currentUserOwner) {
+            $own++;
+        } elseif ($owner === 'shared') {
+            $shared++;
+        }
+    }
+    
+    return [
+        'own' => $own,
+        'shared' => $shared,
+        'total' => $own + $shared
+    ];
+}
+
+/**
+ * Get owner display name
+ * 
+ * @param string $owner Owner identifier (e.g., "user_1", "shared")
+ * @return string Display name
+ */
+function getOwnerDisplayName($owner) {
+    if ($owner === 'shared') {
+        return 'Shared';
+    }
+    
+    if (strpos($owner, 'user_') === 0) {
+        $userId = (int) str_replace('user_', '', $owner);
+        $user = getUserById($userId);
+        
+        if ($user) {
+            return $user['username'];
+        }
+    }
+    
+    return 'Unknown';
+}
+
+/**
+ * Check if current user is the owner of a website
+ * 
+ * @param array $website Website data
+ * @return bool True if current user owns the website
+ */
+function isWebsiteOwner($website) {
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+    
+    $owner = $website['owner'] ?? 'shared';
+    $currentUserOwner = getCurrentUserOwner();
+    
+    return ($owner === $currentUserOwner);
+}
+
+/**
+ * Set flash message in session
+ * 
+ * @param string $type Message type (success, error, warning, info)
+ * @param string $message Message text
+ */
+function setFlashMessage($type, $message) {
+    $_SESSION['flash_' . $type] = $message;
+}
+
+/**
+ * Get and clear flash message
+ * 
+ * @param string $type Message type
+ * @return string|null Message or null
+ */
+function getFlashMessage($type) {
+    $key = 'flash_' . $type;
+    
+    if (isset($_SESSION[$key])) {
+        $message = $_SESSION[$key];
+        unset($_SESSION[$key]);
+        return $message;
+    }
+    
+    return null;
+}
+
+/**
+ * Format date for display
+ * 
+ * @param string $date Date string
+ * @param string $format Output format
+ * @return string Formatted date
+ */
+function formatDate($date, $format = 'M j, Y') {
+    if (empty($date)) {
+        return '';
+    }
+    
+    $timestamp = strtotime($date);
+    return $timestamp ? date($format, $timestamp) : $date;
+}

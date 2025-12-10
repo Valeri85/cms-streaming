@@ -1,8 +1,17 @@
 <?php
+/**
+ * CMS Login Page
+ * 
+ * UPDATED: Now uses 'users' array instead of 'admins'
+ * UPDATED: Session uses 'user_id' instead of 'admin_id'
+ * 
+ * Location: /var/www/u1852176/data/www/watchlivesport.online/login.php
+ */
+
 session_start();
 
 // If already logged in, redirect to dashboard
-if (isset($_SESSION['admin_id'])) {
+if (isset($_SESSION['user_id'])) {
     header('Location: dashboard.php');
     exit;
 }
@@ -14,19 +23,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     
     if ($username && $password) {
-        // Load admins from JSON - using absolute path
+        // Load users from JSON - using absolute path
         $configFile = '/var/www/u1852176/data/www/streaming/config/websites.json';
         
         if (file_exists($configFile)) {
             $configContent = file_get_contents($configFile);
             $configData = json_decode($configContent, true);
-            $admins = $configData['admins'] ?? [];
             
-            foreach ($admins as $admin) {
-                if ($admin['username'] === $username && password_verify($password, $admin['password'])) {
-                    // Login successful
-                    $_SESSION['admin_id'] = $admin['id'];
-                    $_SESSION['admin_username'] = $admin['username'];
+            // Try 'users' array first (new structure), fall back to 'admins' (old structure)
+            $users = $configData['users'] ?? $configData['admins'] ?? [];
+            
+            foreach ($users as $user) {
+                if ($user['username'] === $username && password_verify($password, $user['password'])) {
+                    // Login successful - set BOTH old and new session variables
+                    // New variables (for updated pages)
+                    $_SESSION['user_id'] = $user['id'];
+                    $_SESSION['user_username'] = $user['username'];
+                    
+                    // Old variables (for backward compatibility with pages not yet updated)
+                    $_SESSION['admin_id'] = $user['id'];
+                    $_SESSION['admin_username'] = $user['username'];
                     
                     header('Location: dashboard.php');
                     exit;
@@ -65,7 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST" action="">
                 <div class="form-group">
                     <label for="username">Username</label>
-                    <input type="text" id="username" name="username" required autofocus>
+                    <input type="text" id="username" name="username" required autofocus 
+                           value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
                 </div>
                 
                 <div class="form-group">
@@ -75,13 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <button type="submit" class="btn btn-primary btn-block">Login</button>
             </form>
-            
-            <div class="login-info">
-                <p><strong>Default Login:</strong></p>
-                <p>Username: <code>admin</code></p>
-                <p>Password: <code>admin123</code></p>
-                <p class="text-warning">⚠️ Please change the password after first login!</p>
-            </div>
         </div>
     </div>
 </body>

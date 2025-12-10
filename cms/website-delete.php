@@ -1,7 +1,8 @@
 <?php
 session_start();
 
-if (!isset($_SESSION['admin_id'])) {
+// Check login (support both old and new session)
+if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     header('Location: login.php');
     exit;
 }
@@ -90,9 +91,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
                 <a href="languages.php" class="nav-item">
                     <span>🌐</span> Languages
                 </a>
+                <a href="icons.php" class="nav-item">
+                    <span>🖼️</span> Icons
+                </a>
+                <a href="users.php" class="nav-item">
+                    <span>👥</span> Users
+                </a>
             </nav>
             
             <div class="cms-user">
+                <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px; display: block;">My Profile</a>
                 <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
             </div>
         </aside>
