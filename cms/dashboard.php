@@ -3,6 +3,7 @@
  * CMS Dashboard
  * 
  * REFACTORED Phase 3: Uses header.php, sidebar.php, footer.php components
+ * UPDATED: Added tabs for "Your Websites" and "Shared Websites"
  */
 
 require_once __DIR__ . '/includes/bootstrap.php';
@@ -12,15 +13,36 @@ $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $allWebsites = $configData['websites'] ?? [];
 
-// Filter websites for current user
-$websites = filterWebsitesForUser($allWebsites);
-$websiteCounts = getWebsiteCountsForUser($allWebsites);
-
 // Get current user
 $user = getCurrentUser();
+$currentUserOwner = getCurrentUserOwner();
+
+// Separate websites into "mine" and "shared"
+$myWebsites = [];
+$sharedWebsites = [];
+
+foreach ($allWebsites as $website) {
+    $owner = $website['owner'] ?? 'shared';
+    
+    if ($owner === $currentUserOwner) {
+        $myWebsites[] = $website;
+    } elseif ($owner === 'shared') {
+        $sharedWebsites[] = $website;
+    }
+}
+
+// Count stats
+$totalAccessible = count($myWebsites) + count($sharedWebsites);
+$activeCount = count(array_filter(array_merge($myWebsites, $sharedWebsites), fn($w) => $w['status'] === 'active'));
 
 // Check for flash messages
 $successMessage = getFlashMessage('success');
+
+// Get active tab from URL parameter (default to 'mine')
+$activeTab = $_GET['tab'] ?? 'mine';
+if (!in_array($activeTab, ['mine', 'shared'])) {
+    $activeTab = 'mine';
+}
 
 // Page configuration for header
 $pageTitle = 'Dashboard';
@@ -44,45 +66,63 @@ include __DIR__ . '/includes/header.php';
         <div class="stat-card">
             <div class="stat-icon">🌐</div>
             <div class="stat-info">
-                <h3><?php echo $websiteCounts['total']; ?></h3>
+                <h3><?php echo $totalAccessible; ?></h3>
                 <p>Total Websites</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">👤</div>
             <div class="stat-info">
-                <h3><?php echo $websiteCounts['own']; ?></h3>
+                <h3><?php echo count($myWebsites); ?></h3>
                 <p>My Websites</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">👥</div>
             <div class="stat-info">
-                <h3><?php echo $websiteCounts['shared']; ?></h3>
+                <h3><?php echo count($sharedWebsites); ?></h3>
                 <p>Shared Websites</p>
             </div>
         </div>
         <div class="stat-card">
             <div class="stat-icon">✅</div>
             <div class="stat-info">
-                <h3><?php echo count(array_filter($websites, fn($w) => $w['status'] === 'active')); ?></h3>
+                <h3><?php echo $activeCount; ?></h3>
                 <p>Active</p>
             </div>
         </div>
     </div>
     
-    <!-- Websites List -->
+    <!-- Websites Section with Tabs -->
     <div class="content-section">
         <div class="section-header">
-            <h2>Your Websites</h2>
+            <div class="tabs-header">
+                <a href="?tab=mine" class="tab-btn <?php echo $activeTab === 'mine' ? 'active' : ''; ?>">
+                    👤 Your Websites <span class="tab-count"><?php echo count($myWebsites); ?></span>
+                </a>
+                <a href="?tab=shared" class="tab-btn <?php echo $activeTab === 'shared' ? 'active' : ''; ?>">
+                    👥 Shared Websites <span class="tab-count"><?php echo count($sharedWebsites); ?></span>
+                </a>
+            </div>
             <a href="website-add.php" class="btn btn-primary">+ Add Website</a>
         </div>
         
-        <?php if (empty($websites)): ?>
+        <?php 
+        // Select which websites to show based on active tab
+        $displayWebsites = ($activeTab === 'shared') ? $sharedWebsites : $myWebsites;
+        $emptyMessage = ($activeTab === 'shared') 
+            ? "No shared websites yet" 
+            : "You don't have any personal websites yet";
+        $emptySubtext = ($activeTab === 'shared')
+            ? "Shared websites are visible to all users"
+            : "Click \"+ Add Website\" to create your first website";
+        ?>
+        
+        <?php if (empty($displayWebsites)): ?>
             <div style="text-align: center; padding: 60px 20px; color: #999;">
-                <div style="font-size: 60px; margin-bottom: 20px;">🌐</div>
-                <h3>No websites yet</h3>
-                <p>Click "Add Website" to create your first website</p>
+                <div style="font-size: 60px; margin-bottom: 20px;"><?php echo $activeTab === 'shared' ? '👥' : '🌐'; ?></div>
+                <h3><?php echo $emptyMessage; ?></h3>
+                <p><?php echo $emptySubtext; ?></p>
             </div>
         <?php else: ?>
             <div class="table-container">
@@ -92,16 +132,14 @@ include __DIR__ . '/includes/header.php';
                             <th style="width: 80px;">Tools</th>
                             <th>Domain</th>
                             <th>Site Name</th>
-                            <th>Owner</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($websites as $website): 
+                        <?php foreach ($displayWebsites as $website): 
                             $domain = $website['domain'];
                             $gaId = $website['google_analytics_id'] ?? '';
-                            $owner = $website['owner'] ?? 'shared';
                             $analyticsUrl = !empty($website['analytics_url']) ? $website['analytics_url'] : 'https://analytics.google.com/analytics/web/';
                             $searchConsoleUrl = 'https://search.google.com/search-console?resource_id=sc-domain%3A' . urlencode($domain);
                         ?>
@@ -124,11 +162,6 @@ include __DIR__ . '/includes/header.php';
                                 </td>
                                 <td><?php echo htmlspecialchars($website['site_name']); ?></td>
                                 <td>
-                                    <span class="owner-badge <?php echo $owner === 'shared' ? 'shared' : 'own'; ?>">
-                                        <?php echo $owner === 'shared' ? '👥 Shared' : '👤 ' . getOwnerDisplayName($owner); ?>
-                                    </span>
-                                </td>
-                                <td>
                                     <span class="badge <?php echo $website['status'] === 'active' ? 'badge-active' : 'badge-inactive'; ?>">
                                         <?php echo ucfirst($website['status']); ?>
                                     </span>
@@ -150,13 +183,94 @@ include __DIR__ . '/includes/header.php';
 </div>
 
 <style>
-    .owner-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-    .owner-badge.own { background: #e3f2fd; color: #1565c0; }
-    .owner-badge.shared { background: #f3e5f5; color: #7b1fa2; }
-    .external-link-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; text-decoration: none; transition: all 0.2s; }
-    .external-link-icon:hover { transform: translateY(-2px); }
-    .external-link-icon.analytics { background: #fff3e0; }
-    .external-link-icon.search-console { background: #e8f5e9; }
+    /* Tabs Styles */
+    .tabs-header {
+        display: flex;
+        gap: 5px;
+    }
+    
+    .tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: #f8f9fa;
+        border: 2px solid #e9ecef;
+        border-radius: 8px 8px 0 0;
+        text-decoration: none;
+        color: #666;
+        font-weight: 600;
+        font-size: 14px;
+        transition: all 0.2s;
+        margin-bottom: -2px;
+    }
+    
+    .tab-btn:hover {
+        background: #e9ecef;
+        color: #333;
+    }
+    
+    .tab-btn.active {
+        background: white;
+        border-color: #667eea;
+        border-bottom-color: white;
+        color: #667eea;
+    }
+    
+    .tab-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 8px;
+        background: #e9ecef;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    
+    .tab-btn.active .tab-count {
+        background: #667eea;
+        color: white;
+    }
+    
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 20px;
+        padding-bottom: 0;
+        border-bottom: 2px solid #667eea;
+    }
+    
+    .section-header .btn-primary {
+        margin-bottom: 10px;
+    }
+    
+    /* External Link Icons */
+    .external-link-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    
+    .external-link-icon:hover {
+        transform: translateY(-2px);
+    }
+    
+    .external-link-icon.analytics {
+        background: #fff3e0;
+    }
+    
+    .external-link-icon.search-console {
+        background: #e8f5e9;
+    }
 </style>
 
 <?php
