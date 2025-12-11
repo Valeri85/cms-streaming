@@ -2,22 +2,11 @@
 /**
  * Add New Website
  * 
- * REFACTORED: Uses centralized config and functions
+ * REFACTORED Phase 3: Uses bootstrap.php, header.php, footer.php components
+ * ALL FEATURES PRESERVED
  */
 
-session_start();
-
-// ==========================================
-// LOAD CENTRALIZED CONFIG AND FUNCTIONS
-// ==========================================
-require_once __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/functions.php';
-
-// Check login (support both old and new session)
-if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
-}
+require_once __DIR__ . '/includes/bootstrap.php';
 
 // Get current user for owner assignment
 $currentUser = getCurrentUser();
@@ -248,201 +237,165 @@ $configContent = file_get_contents(WEBSITES_CONFIG_FILE);
 $configData = json_decode($configContent, true);
 $existingWebsites = $configData['websites'] ?? [];
 $currentSportsCount = count(getSportsListForNewWebsite());
+
+// ==========================================
+// PAGE CONFIGURATION FOR HEADER
+// ==========================================
+$pageTitle = 'Add Website - CMS';
+$currentPage = 'website-add';
+$extraCss = ['css/website-add.css'];
+
+include __DIR__ . '/includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Add Website - CMS</title>
-    <link rel="stylesheet" href="cms-style.css">
-    <link rel="stylesheet" href="css/website-add.css">
-</head>
-<body>
-    <div class="cms-layout">
-        <aside class="cms-sidebar">
-            <div class="cms-logo">
-                <h2>🎯 CMS</h2>
-            </div>
-            
-            <nav class="cms-nav">
-                <a href="dashboard.php" class="nav-item">
-                    <span>🏠</span> Dashboard
-                </a>
-                <a href="website-add.php" class="nav-item active">
-                    <span>➕</span> Add Website
-                </a>
-                <a href="languages.php" class="nav-item">
-                    <span>🌐</span> Languages
-                </a>
-                <a href="icons.php" class="nav-item">
-                    <span>🖼️</span> Icons
-                </a>
-                <a href="users.php" class="nav-item">
-                    <span>👥</span> Users
-                </a>
-            </nav>
-            
-            <div class="cms-user">
-                <?php if ($currentUser): ?>
-                    <p style="margin-bottom: 8px;"><strong><?php echo htmlspecialchars($currentUser['username']); ?></strong></p>
-                    <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px; display: block;">My Profile</a>
-                <?php endif; ?>
-                <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
-            </div>
-        </aside>
-        
-        <main class="cms-main">
-            <header class="cms-header">
-                <h1>Add New Website</h1>
-                <a href="dashboard.php" class="btn">← Back to Dashboard</a>
-            </header>
-            
-            <div class="cms-content">
-                <?php if ($error): ?>
-                    <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
-                
-                <?php if ($success): ?>
-                    <div class="alert alert-success">
-                        <?php echo htmlspecialchars($success); ?>
-                        <br><a href="dashboard.php">Go to Dashboard</a>
-                    </div>
-                <?php endif; ?>
-                
-                <form method="POST" enctype="multipart/form-data" class="cms-form">
-                    <!-- Owner Selection Section -->
-                    <div class="form-section">
-                        <h3>👤 Website Owner</h3>
-                        <p style="color: #666; margin-bottom: 15px;">Who should have access to this website?</p>
-                        
-                        <div class="owner-selection" style="display: flex; gap: 15px;">
-                            <label class="owner-option selected" style="flex: 1; padding: 15px; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; text-align: center; background: #f0f4ff;">
-                                <input type="radio" name="owner_type" value="mine" checked style="display: none;">
-                                <div style="font-size: 24px; margin-bottom: 8px;">👤</div>
-                                <div style="font-weight: 600; color: #333;">My Website</div>
-                                <div style="font-size: 12px; color: #666; margin-top: 4px;">Only you can see and manage</div>
-                            </label>
-                            
-                            <label class="owner-option" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center;">
-                                <input type="radio" name="owner_type" value="shared" style="display: none;">
-                                <div style="font-size: 24px; margin-bottom: 8px;">👥</div>
-                                <div style="font-weight: 600; color: #333;">Shared</div>
-                                <div style="font-size: 12px; color: #666; margin-top: 4px;">All users can see and manage</div>
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-section">
-                        <h3>Basic Information</h3>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="site_name">Site Name *</label>
-                                <input type="text" id="site_name" name="site_name" value="<?php echo htmlspecialchars($_POST['site_name'] ?? ''); ?>" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="domain">Domain *</label>
-                                <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($_POST['domain'] ?? ''); ?>" required placeholder="example.com">
-                                <small>Enter domain without www. or https:// (e.g., sportlemons.info)</small>
-                            </div>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Logo Image</label>
-                                <div id="logoPreview" class="logo-preview empty">?</div>
-                                <div class="file-upload-wrapper">
-                                    <label for="logo_file" class="file-upload-label">
-                                        <span>📤</span>
-                                        <span>Choose Logo</span>
-                                    </label>
-                                    <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".webp,.svg,.avif">
-                                    <div class="file-name-display" id="logoFileName">No file chosen</div>
-                                </div>
-                                <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="language">Default Language</label>
-                                <select id="language" name="language">
-                                    <?php foreach ($availableLanguages as $code => $lang): ?>
-                                        <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($code === 'en') ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($lang['flag'] . ' ' . $lang['name']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small><a href="languages.php">Manage languages</a></small>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="status">Status</label>
-                            <select id="status" name="status">
-                                <option value="active" selected>Active</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="form-section">
-                        <h3>Theme Colors</h3>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="primary_color">Primary Color</label>
-                                <div class="color-input">
-                                    <input type="color" id="primary_color" name="primary_color" value="#FFA500">
-                                    <input type="text" value="#FFA500" readonly>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="secondary_color">Secondary Color</label>
-                                <div class="color-input">
-                                    <input type="color" id="secondary_color" name="secondary_color" value="#FF8C00">
-                                    <input type="text" value="#FF8C00" readonly>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-section" style="background: #e8f5e9; border: 2px solid #81c784;">
-                        <h3>📋 Automatic Configuration</h3>
-                        <p style="margin-bottom: 10px;">When you create this website, the system will automatically:</p>
-                        <ul style="list-style: none; padding-left: 0;">
-                            <li style="padding: 8px 0;">✅ Load <strong><?php echo $currentSportsCount; ?> sport categories</strong> from master-sports.json</li>
-                            <li style="padding: 8px 0;">✅ Create config file: <code><?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?>.php</code></li>
-                            <li style="padding: 8px 0;">✅ Generate canonical URL: <code>https://www.<?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?></code></li>
-                            <li style="padding: 8px 0;">✅ Set up basic SEO structure</li>
-                            <li style="padding: 8px 0;">🌐 <strong>Enable only English</strong> - Add more languages in Settings after translating</li>
-                        </ul>
-                        <p style="margin-top: 15px; color: #2e7d32; font-weight: 600;">⚠️ After creation, remember to configure SEO for each sport page!</p>
-                    </div>
-                    
-                    <div class="form-actions">
-                        <button type="submit" class="btn btn-primary">Create Website</button>
-                        <a href="dashboard.php" class="btn btn-outline">Cancel</a>
-                    </div>
-                </form>
-            </div>
-        </main>
-    </div>
+
+<header class="cms-header">
+    <h1>Add New Website</h1>
+    <a href="dashboard.php" class="btn">← Back to Dashboard</a>
+</header>
+
+<div class="cms-content">
+    <?php if ($error): ?>
+        <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
+    <?php endif; ?>
     
-    <script src="js/website-add.js"></script>
-    <script>
-        // Owner selection toggle
-        document.querySelectorAll('.owner-option').forEach(option => {
-            option.addEventListener('click', function() {
-                document.querySelectorAll('.owner-option').forEach(o => {
-                    o.style.borderColor = '#ddd';
-                    o.style.background = 'white';
-                });
-                this.style.borderColor = '#667eea';
-                this.style.background = '#f0f4ff';
+    <?php if ($success): ?>
+        <div class="alert alert-success">
+            <?php echo htmlspecialchars($success); ?>
+            <br><a href="dashboard.php">Go to Dashboard</a>
+        </div>
+    <?php endif; ?>
+    
+    <form method="POST" enctype="multipart/form-data" class="cms-form">
+        <!-- Owner Selection Section -->
+        <div class="form-section">
+            <h3>👤 Website Owner</h3>
+            <p style="color: #666; margin-bottom: 15px;">Who should have access to this website?</p>
+            
+            <div class="owner-selection" style="display: flex; gap: 15px;">
+                <label class="owner-option selected" style="flex: 1; padding: 15px; border: 2px solid #667eea; border-radius: 8px; cursor: pointer; text-align: center; background: #f0f4ff;">
+                    <input type="radio" name="owner_type" value="mine" checked style="display: none;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">👤</div>
+                    <div style="font-weight: 600; color: #333;">My Website</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">Only you can see and manage</div>
+                </label>
+                
+                <label class="owner-option" style="flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 8px; cursor: pointer; text-align: center;">
+                    <input type="radio" name="owner_type" value="shared" style="display: none;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">👥</div>
+                    <div style="font-weight: 600; color: #333;">Shared</div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">All users can see and manage</div>
+                </label>
+            </div>
+        </div>
+        
+        <div class="form-section">
+            <h3>Basic Information</h3>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="site_name">Site Name *</label>
+                    <input type="text" id="site_name" name="site_name" value="<?php echo htmlspecialchars($_POST['site_name'] ?? ''); ?>" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="domain">Domain *</label>
+                    <input type="text" id="domain" name="domain" value="<?php echo htmlspecialchars($_POST['domain'] ?? ''); ?>" required placeholder="example.com">
+                    <small>Enter domain without www. or https:// (e.g., sportlemons.info)</small>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Logo Image</label>
+                    <div id="logoPreview" class="logo-preview empty">?</div>
+                    <div class="file-upload-wrapper">
+                        <label for="logo_file" class="file-upload-label">
+                            <span>📤</span>
+                            <span>Choose Logo</span>
+                        </label>
+                        <input type="file" id="logo_file" name="logo_file" class="file-upload-input" accept=".webp,.svg,.avif">
+                        <div class="file-name-display" id="logoFileName">No file chosen</div>
+                    </div>
+                    <small>WEBP, SVG, AVIF • Recommended: 64x64px</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="language">Default Language</label>
+                    <select id="language" name="language">
+                        <?php foreach ($availableLanguages as $code => $lang): ?>
+                            <option value="<?php echo htmlspecialchars($code); ?>" <?php echo ($code === 'en') ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($lang['flag'] . ' ' . $lang['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small><a href="languages.php">Manage languages</a></small>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="active" selected>Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="form-section">
+            <h3>Theme Colors</h3>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="primary_color">Primary Color</label>
+                    <div class="color-input">
+                        <input type="color" id="primary_color" name="primary_color" value="#FFA500">
+                        <input type="text" value="#FFA500" readonly>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="secondary_color">Secondary Color</label>
+                    <div class="color-input">
+                        <input type="color" id="secondary_color" name="secondary_color" value="#FF8C00">
+                        <input type="text" value="#FF8C00" readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-section" style="background: #e8f5e9; border: 2px solid #81c784;">
+            <h3>📋 Automatic Configuration</h3>
+            <p style="margin-bottom: 10px;">When you create this website, the system will automatically:</p>
+            <ul style="list-style: none; padding-left: 0;">
+                <li style="padding: 8px 0;">✅ Load <strong><?php echo $currentSportsCount; ?> sport categories</strong> from master-sports.json</li>
+                <li style="padding: 8px 0;">✅ Create config file: <code><?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?>.php</code></li>
+                <li style="padding: 8px 0;">✅ Generate canonical URL: <code>https://www.<?php echo htmlspecialchars($_POST['domain'] ?? 'example.com'); ?></code></li>
+                <li style="padding: 8px 0;">✅ Set up basic SEO structure</li>
+                <li style="padding: 8px 0;">🌐 <strong>Enable only English</strong> - Add more languages in Settings after translating</li>
+            </ul>
+            <p style="margin-top: 15px; color: #2e7d32; font-weight: 600;">⚠️ After creation, remember to configure SEO for each sport page!</p>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Create Website</button>
+            <a href="dashboard.php" class="btn btn-outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script src="js/website-add.js"></script>
+<script>
+    // Owner selection toggle
+    document.querySelectorAll('.owner-option').forEach(option => {
+        option.addEventListener('click', function() {
+            document.querySelectorAll('.owner-option').forEach(o => {
+                o.style.borderColor = '#ddd';
+                o.style.background = 'white';
             });
+            this.style.borderColor = '#667eea';
+            this.style.background = '#f0f4ff';
         });
-    </script>
-</body>
-</html>
+    });
+</script>
+
+<?php include __DIR__ . '/includes/footer.php'; ?>

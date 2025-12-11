@@ -2,22 +2,11 @@
 /**
  * Edit Language Translations
  * 
- * REFACTORED: Uses centralized config and functions
+ * REFACTORED Phase 3: Uses bootstrap.php, header.php, footer.php components
+ * ALL FEATURES PRESERVED: Section descriptions, key descriptions, quick nav, smooth scroll, unsaved warning
  */
 
-session_start();
-
-// ==========================================
-// LOAD CENTRALIZED CONFIG AND FUNCTIONS
-// ==========================================
-require_once __DIR__ . '/includes/config.php';
-require_once __DIR__ . '/includes/functions.php';
-
-// Check login (support both old and new session)
-if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
-}
+require_once __DIR__ . '/includes/bootstrap.php';
 
 $langCode = $_GET['code'] ?? null;
 $error = '';
@@ -187,219 +176,186 @@ $sections = [
 
 // Get sports list from English file
 $sportsList = $englishData['sports'] ?? [];
+
+// ==========================================
+// PAGE CONFIGURATION FOR HEADER
+// ==========================================
+$pageTitle = 'Edit ' . htmlspecialchars($langName) . ' - CMS';
+$currentPage = 'languages';
+$extraCss = ['css/languages.css'];
+
+include __DIR__ . '/includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edit <?php echo htmlspecialchars($langName); ?> - CMS</title>
-    <link rel="stylesheet" href="cms-style.css">
-    <link rel="stylesheet" href="css/language-edit.css">
-</head>
-<body>
-    <div class="cms-layout">
-        <aside class="cms-sidebar">
-            <div class="cms-logo">
-                <h2>🎯 CMS</h2>
-            </div>
-            
-            <nav class="cms-nav">
-                <a href="dashboard.php" class="nav-item">
-                    <span>🏠</span> Dashboard
-                </a>
-                <a href="website-add.php" class="nav-item">
-                    <span>➕</span> Add Website
-                </a>
-                <a href="languages.php" class="nav-item active">
-                    <span>🌐</span> Languages
-                </a>
-                <a href="icons.php" class="nav-item">
-                    <span>🖼️</span> Icons
-                </a>
-                <a href="users.php" class="nav-item">
-                    <span>👥</span> Users
-                </a>
-            </nav>
-            
-            <div class="cms-user">
-                <a href="profile.php" class="btn btn-sm btn-outline" style="margin-bottom: 5px; display: block;">My Profile</a>
-                <a href="logout.php" class="btn btn-sm btn-outline">Logout</a>
-            </div>
-        </aside>
-        
-        <main class="cms-main">
-            <header class="cms-header">
-                <h1>Edit Language</h1>
-                <a href="languages.php" class="btn">← Back to Languages</a>
-            </header>
-            
-            <div class="cms-content">
-                <?php if ($error): ?>
-                    <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
-                <?php endif; ?>
-                
-                <?php if ($success): ?>
-                    <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
-                <?php endif; ?>
-                
-                <!-- Language Header -->
-                <div class="language-edit-header">
-                    <span class="language-edit-flag"><?php echo htmlspecialchars($langFlag); ?></span>
-                    <div class="language-edit-info">
-                        <h2><?php echo htmlspecialchars($langName); ?></h2>
-                        <p>Language Code: <strong><?php echo htmlspecialchars($langCode); ?></strong></p>
-                    </div>
-                </div>
-                
-                <!-- Quick Navigation -->
-                <div class="section-nav">
-                    <span style="padding: 8px 0; color: #7f8c8d;">Jump to:</span>
-                    <a href="#section-info">ℹ️ Language Info</a>
-                    <?php foreach ($sections as $sectionKey => $section): ?>
-                        <a href="#section-<?php echo $sectionKey; ?>"><?php echo $section['title']; ?></a>
-                    <?php endforeach; ?>
-                    <a href="#section-sports">⚽ Sports</a>
-                </div>
-                
-                <form method="POST" id="translationsForm">
-                    <input type="hidden" name="save_translations" value="1">
-                    
-                    <!-- Language Info Section -->
-                    <div class="lang-info-section" id="section-info">
-                        <h3>ℹ️ Language Information</h3>
-                        <div class="lang-info-grid">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label for="lang_name">Language Name</label>
-                                <input type="text" id="lang_name" name="lang_name" value="<?php echo htmlspecialchars($langName); ?>" required>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label for="lang_flag">Flag Emoji</label>
-                                <input type="text" id="lang_flag" name="lang_flag" value="<?php echo htmlspecialchars($langFlag); ?>" required style="font-size: 24px; text-align: center;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label>Language Code</label>
-                                <input type="text" value="<?php echo htmlspecialchars($langCode); ?>" disabled style="background: #e9ecef;">
-                                <small>Cannot be changed</small>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Translation Sections -->
-                    <?php foreach ($sections as $sectionKey => $section): ?>
-                        <div class="translation-section" id="section-<?php echo $sectionKey; ?>">
-                            <div class="translation-section-header">
-                                <div class="translation-section-title">
-                                    <?php echo $section['title']; ?>
-                                    <span class="translation-section-count"><?php echo count($section['keys']); ?> items</span>
-                                </div>
-                            </div>
-                            <div class="translation-section-body">
-                                <p style="color: #7f8c8d; margin-bottom: 15px; font-size: 14px;"><?php echo $section['description']; ?></p>
-                                
-                                <?php foreach ($section['keys'] as $key => $description): 
-                                    $currentValue = $langData[$sectionKey][$key] ?? '';
-                                    $englishValue = getEnglishText($sectionKey, $key, $englishData);
-                                ?>
-                                    <div class="translation-row">
-                                        <div class="translation-key" title="<?php echo htmlspecialchars($description); ?>">
-                                            <?php echo htmlspecialchars($key); ?>
-                                        </div>
-                                        <div class="translation-value">
-                                            <input type="text" 
-                                                   name="<?php echo $sectionKey; ?>[<?php echo htmlspecialchars($key); ?>]" 
-                                                   value="<?php echo htmlspecialchars($currentValue); ?>"
-                                                   placeholder="<?php echo htmlspecialchars($englishValue); ?>">
-                                            <?php if (!$isEnglish && $englishValue): ?>
-                                                <div class="english-reference">
-                                                    <strong>EN:</strong> <?php echo htmlspecialchars($englishValue); ?>
-                                                </div>
-                                            <?php else: ?>
-                                                <div class="english-reference"><?php echo htmlspecialchars($description); ?></div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                    
-                    <!-- Sports Section -->
-                    <div class="translation-section" id="section-sports">
-                        <div class="translation-section-header">
-                            <div class="translation-section-title">
-                                ⚽ Sports Names
-                                <span class="translation-section-count"><?php echo count($sportsList); ?> items</span>
-                            </div>
-                        </div>
-                        <div class="translation-section-body">
-                            <p style="color: #7f8c8d; margin-bottom: 15px; font-size: 14px;">
-                                Sport names displayed in the sidebar menu. The key (English name) is used for matching with game data.
-                            </p>
-                            
-                            <div class="sports-translation-grid">
-                                <?php foreach ($sportsList as $sportKey => $sportEnglish): 
-                                    $currentValue = $langData['sports'][$sportKey] ?? $sportEnglish;
-                                ?>
-                                    <div class="sport-translation-item">
-                                        <span class="sport-english-name" title="Key: <?php echo htmlspecialchars($sportKey); ?>">
-                                            <?php echo htmlspecialchars($sportKey); ?>
-                                        </span>
-                                        <input type="text" 
-                                               name="sports[<?php echo htmlspecialchars($sportKey); ?>]" 
-                                               value="<?php echo htmlspecialchars($currentValue); ?>"
-                                               placeholder="<?php echo htmlspecialchars($sportEnglish); ?>">
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Sticky Save Bar -->
-                    <div class="save-bar">
-                        <div class="save-bar-info">
-                            💡 Changes are saved when you click "Save All Translations"
-                        </div>
-                        <div>
-                            <a href="languages.php" class="btn" style="margin-right: 10px;">Cancel</a>
-                            <button type="submit" class="btn btn-primary">💾 Save All Translations</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </main>
+
+<header class="cms-header">
+    <h1>Edit Language</h1>
+    <a href="languages.php" class="btn">← Back to Languages</a>
+</header>
+
+<div class="cms-content">
+    <?php if ($error): ?>
+        <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
+    <?php endif; ?>
+    
+    <?php if ($success): ?>
+        <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
+    <?php endif; ?>
+    
+    <!-- Language Header -->
+    <div class="language-edit-header">
+        <span class="language-edit-flag"><?php echo htmlspecialchars($langFlag); ?></span>
+        <div class="language-edit-info">
+            <h2><?php echo htmlspecialchars($langName); ?></h2>
+            <p>Language Code: <strong><?php echo htmlspecialchars($langCode); ?></strong></p>
+        </div>
     </div>
     
-    <script>
-        // Smooth scroll to sections
-        document.querySelectorAll('.section-nav a').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href').substring(1);
-                const target = document.getElementById(targetId);
-                if (target) {
-                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            });
-        });
+    <!-- Quick Navigation -->
+    <div class="section-nav">
+        <span style="padding: 8px 0; color: #7f8c8d;">Jump to:</span>
+        <a href="#section-info">ℹ️ Language Info</a>
+        <?php foreach ($sections as $sectionKey => $section): ?>
+            <a href="#section-<?php echo $sectionKey; ?>"><?php echo $section['title']; ?></a>
+        <?php endforeach; ?>
+        <a href="#section-sports">⚽ Sports</a>
+    </div>
+    
+    <form method="POST" id="translationsForm">
+        <input type="hidden" name="save_translations" value="1">
         
-        // Warn before leaving with unsaved changes
-        let formChanged = false;
+        <!-- Language Info Section -->
+        <div class="lang-info-section" id="section-info">
+            <h3>ℹ️ Language Information</h3>
+            <div class="lang-info-grid">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="lang_name">Language Name</label>
+                    <input type="text" id="lang_name" name="lang_name" value="<?php echo htmlspecialchars($langName); ?>" required>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label for="lang_flag">Flag Emoji</label>
+                    <input type="text" id="lang_flag" name="lang_flag" value="<?php echo htmlspecialchars($langFlag); ?>" required style="font-size: 24px; text-align: center;">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>Language Code</label>
+                    <input type="text" value="<?php echo htmlspecialchars($langCode); ?>" disabled style="background: #e9ecef;">
+                    <small>Cannot be changed</small>
+                </div>
+            </div>
+        </div>
         
-        document.getElementById('translationsForm').addEventListener('input', function() {
-            formChanged = true;
-        });
+        <!-- Translation Sections -->
+        <?php foreach ($sections as $sectionKey => $section): ?>
+            <div class="translation-section" id="section-<?php echo $sectionKey; ?>">
+                <div class="translation-section-header">
+                    <div class="translation-section-title">
+                        <?php echo $section['title']; ?>
+                        <span class="translation-section-count"><?php echo count($section['keys']); ?> items</span>
+                    </div>
+                </div>
+                <div class="translation-section-body">
+                    <p style="color: #7f8c8d; margin-bottom: 15px; font-size: 14px;"><?php echo $section['description']; ?></p>
+                    
+                    <?php foreach ($section['keys'] as $key => $description): 
+                        $currentValue = $langData[$sectionKey][$key] ?? '';
+                        $englishValue = getEnglishText($sectionKey, $key, $englishData);
+                    ?>
+                        <div class="translation-row">
+                            <div class="translation-key" title="<?php echo htmlspecialchars($description); ?>">
+                                <?php echo htmlspecialchars($key); ?>
+                            </div>
+                            <div class="translation-value">
+                                <input type="text" 
+                                       name="<?php echo $sectionKey; ?>[<?php echo htmlspecialchars($key); ?>]" 
+                                       value="<?php echo htmlspecialchars($currentValue); ?>"
+                                       placeholder="<?php echo htmlspecialchars($englishValue); ?>">
+                                <?php if (!$isEnglish && $englishValue): ?>
+                                    <div class="english-reference">
+                                        <strong>EN:</strong> <?php echo htmlspecialchars($englishValue); ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="english-reference"><?php echo htmlspecialchars($description); ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
         
-        window.addEventListener('beforeunload', function(e) {
-            if (formChanged) {
-                e.preventDefault();
-                e.returnValue = '';
+        <!-- Sports Section -->
+        <div class="translation-section" id="section-sports">
+            <div class="translation-section-header">
+                <div class="translation-section-title">
+                    ⚽ Sports Names
+                    <span class="translation-section-count"><?php echo count($sportsList); ?> items</span>
+                </div>
+            </div>
+            <div class="translation-section-body">
+                <p style="color: #7f8c8d; margin-bottom: 15px; font-size: 14px;">
+                    Sport names displayed in the sidebar menu. The key (English name) is used for matching with game data.
+                </p>
+                
+                <div class="sports-translation-grid">
+                    <?php foreach ($sportsList as $sportKey => $sportEnglish): 
+                        $currentValue = $langData['sports'][$sportKey] ?? $sportEnglish;
+                    ?>
+                        <div class="sport-translation-item">
+                            <span class="sport-english-name" title="Key: <?php echo htmlspecialchars($sportKey); ?>">
+                                <?php echo htmlspecialchars($sportKey); ?>
+                            </span>
+                            <input type="text" 
+                                   name="sports[<?php echo htmlspecialchars($sportKey); ?>]" 
+                                   value="<?php echo htmlspecialchars($currentValue); ?>"
+                                   placeholder="<?php echo htmlspecialchars($sportEnglish); ?>">
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sticky Save Bar -->
+        <div class="save-bar">
+            <div class="save-bar-info">
+                💡 Changes are saved when you click "Save All Translations"
+            </div>
+            <div>
+                <a href="languages.php" class="btn" style="margin-right: 10px;">Cancel</a>
+                <button type="submit" class="btn btn-primary">💾 Save All Translations</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Smooth scroll to sections
+    document.querySelectorAll('.section-nav a').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetId = this.getAttribute('href').substring(1);
+            const target = document.getElementById(targetId);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
         });
-        
-        document.getElementById('translationsForm').addEventListener('submit', function() {
-            formChanged = false;
-        });
-    </script>
-</body>
-</html>
+    });
+    
+    // Warn before leaving with unsaved changes
+    let formChanged = false;
+    
+    document.getElementById('translationsForm').addEventListener('input', function() {
+        formChanged = true;
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+    
+    document.getElementById('translationsForm').addEventListener('submit', function() {
+        formChanged = false;
+    });
+</script>
+
+<?php include __DIR__ . '/includes/footer.php'; ?>

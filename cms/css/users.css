@@ -1,0 +1,159 @@
+/* ==========================================
+   USERS MANAGEMENT PAGE
+   ========================================== */
+
+/* User Cards */
+.user-card {
+	background: white;
+	border-radius: 8px;
+	padding: 20px;
+	margin-bottom: 15px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.user-info {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+}
+
+.user-avatar {
+	width: 50px;
+	height: 50px;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 20px;
+	color: white;
+	font-weight: bold;
+}
+
+.user-avatar.current {
+	background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+}
+
+.user-details h3 {
+	margin: 0 0 5px 0;
+	font-size: 16px;
+}
+
+.user-details p {
+	margin: 0;
+	font-size: 13px;
+	color: #666;
+}
+
+.user-badges {
+	display: flex;
+	gap: 8px;
+	margin-top: 5px;
+}
+
+.badge {
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.badge.super-admin {
+	background: #fff3e0;
+	color: #e65100;
+}
+
+.badge.you {
+	background: #e8f5e9;
+	color: #2e7d32;
+}
+
+.user-actions {
+	display: flex;
+	gap: 10px;
+}
+
+/* Add User Form */
+.add-user-section {
+	background: white;
+	border-radius: 8px;
+	padding: 25px;
+	margin-bottom: 30px;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.add-user-section h3 {
+	margin: 0 0 20px 0;
+	padding-bottom: 10px;
+	border-bottom: 1px solid #eee;
+}
+
+.form-row {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 15px;
+}
+
+@media (max-width: 600px) {
+	.form-row {
+		grid-template-columns: 1fr;
+	}
+}
+
+.checkbox-group {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 10px;
+}
+
+.checkbox-group input[type='checkbox'] {
+	width: 18px;
+	height: 18px;
+}
+
+/* Delete confirmation modal */
+.modal-overlay {
+	display: none;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	z-index: 1000;
+	align-items: center;
+	justify-content: center;
+}
+
+.modal-overlay.active {
+	display: flex;
+}
+
+.modal-overlay .modal-content {
+	background: white;
+	border-radius: 12px;
+	padding: 30px;
+	max-width: 400px;
+	width: 90%;
+	text-align: center;
+}
+
+.modal-overlay .modal-content h3 {
+	margin: 0 0 15px 0;
+	color: #dc3545;
+}
+
+.modal-overlay .modal-content p {
+	margin: 0 0 20px 0;
+	color: #666;
+}
+
+.modal-actions {
+	display: flex;
+	gap: 10px;
+	justify-content: center;
+}
