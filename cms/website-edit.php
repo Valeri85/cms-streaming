@@ -4,6 +4,7 @@
  * 
  * REFACTORED Phase 3: Uses header.php, sidebar.php, footer.php components
  * ALL FEATURES PRESERVED: Language modal, inline styles, full functionality
+ * UPDATED: Added analytics_property_url field for direct Analytics links
  */
 
 require_once __DIR__ . '/includes/bootstrap.php';
@@ -59,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if ($websiteIndex !== null) {
+        // Get all POST values FIRST (before any conditionals)
         $siteName = trim($_POST['site_name'] ?? '');
         $domain = trim($_POST['domain'] ?? '');
         $primaryColor = trim($_POST['primary_color'] ?? '#FFA500');
@@ -66,12 +68,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $language = trim($_POST['language'] ?? 'en');
         $status = $_POST['status'] ?? 'active';
         
-        // Get analytics and custom head code
+        // Get analytics fields
         $googleAnalyticsId = trim($_POST['google_analytics_id'] ?? '');
-        $analyticsUrl = trim($_POST['analytics_url'] ?? '');
+        $analyticsPropertyUrl = trim($_POST['analytics_property_url'] ?? '');
         $customHeadCode = $_POST['custom_head_code'] ?? '';
         
-        // Get owner selection (NEW)
+        // Get owner selection
         $ownerType = $_POST['owner_type'] ?? 'mine';
         if ($ownerType === 'shared') {
             $owner = 'shared';
@@ -146,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Generate canonical URL (function from functions.php)
                 $canonicalUrl = generateCanonicalUrl($domain);
                 
+                // Save all basic fields
                 $websites[$websiteIndex]['domain'] = $domain;
                 $websites[$websiteIndex]['canonical_url'] = $canonicalUrl;
                 $websites[$websiteIndex]['site_name'] = $siteName;
@@ -154,9 +157,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $websites[$websiteIndex]['language'] = $language;
                 $websites[$websiteIndex]['status'] = $status;
                 
-                // Save analytics and custom head code
+                // Save analytics fields
                 $websites[$websiteIndex]['google_analytics_id'] = $googleAnalyticsId;
-                $websites[$websiteIndex]['analytics_url'] = $analyticsUrl;
+                $websites[$websiteIndex]['analytics_property_url'] = $analyticsPropertyUrl;
                 $websites[$websiteIndex]['custom_head_code'] = $customHeadCode;
                 
                 // Save owner
@@ -446,68 +449,23 @@ include __DIR__ . '/includes/header.php';
         color: #e65100;
     }
     
-    .analytics-section .form-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-    }
-    
-    .analytics-section .input-with-icon {
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
-    
-    .analytics-section .input-with-icon input {
-        flex: 1;
-    }
-    
-    .analytics-section .input-icon-link {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        background: linear-gradient(135deg, #f9ab00, #e37400);
+    .analytics-help-text {
+        background: #e3f2fd;
+        border: 1px solid #90caf9;
         border-radius: 8px;
-        text-decoration: none;
-        font-size: 20px;
-        transition: transform 0.2s, box-shadow 0.2s;
+        padding: 12px 15px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        color: #1565c0;
     }
     
-    .analytics-section .input-icon-link:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(249, 171, 0, 0.4);
+    .analytics-help-text ol {
+        margin: 10px 0 0 20px;
+        padding: 0;
     }
     
-    .analytics-section .quick-links {
-        display: flex;
-        gap: 12px;
-        margin-top: 8px;
-    }
-    
-    .analytics-section .quick-link-btn {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 18px;
-        background: linear-gradient(135deg, #4285f4, #34a853);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        text-decoration: none;
-        font-size: 14px;
-        font-weight: 500;
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    
-    .analytics-section .quick-link-btn:nth-child(2) {
-        background: linear-gradient(135deg, #f9ab00, #e37400);
-    }
-    
-    .analytics-section .quick-link-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    .analytics-help-text li {
+        margin: 5px 0;
     }
     
     /* Custom Head Code Section Styles */
@@ -564,9 +522,6 @@ include __DIR__ . '/includes/header.php';
     @media (max-width: 768px) {
         .analytics-section .form-row {
             grid-template-columns: 1fr;
-        }
-        .analytics-section .quick-links {
-            flex-direction: column;
         }
     }
 </style>
@@ -778,35 +733,30 @@ include __DIR__ . '/includes/header.php';
         <div class="form-section analytics-section">
             <h3>📊 Analytics & Tracking</h3>
             
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="google_analytics_id">Google Analytics ID</label>
-                    <div class="input-with-icon">
-                        <input type="text" id="google_analytics_id" name="google_analytics_id" 
-                               value="<?php echo htmlspecialchars($website['google_analytics_id'] ?? ''); ?>" 
-                               placeholder="G-XXXXXXXXXX">
-                        <?php if (!empty($website['google_analytics_id'])): ?>
-                            <a href="https://analytics.google.com/analytics/web/" target="_blank" class="input-icon-link" title="Open Analytics">📊</a>
-                        <?php endif; ?>
-                    </div>
-                    <small>Find in Google Analytics → Admin → Data Streams</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="analytics_url">Analytics Dashboard URL</label>
-                    <input type="url" id="analytics_url" name="analytics_url" 
-                           value="<?php echo htmlspecialchars($website['analytics_url'] ?? ''); ?>" 
-                           placeholder="https://analytics.google.com/...">
-                    <small>Quick access link to your dashboard</small>
-                </div>
+            <div class="analytics-help-text">
+                <strong>How to get your Analytics Property URL:</strong>
+                <ol>
+                    <li>Go to <a href="https://analytics.google.com" target="_blank">Google Analytics</a></li>
+                    <li>Select the property for this website (e.g., <?php echo htmlspecialchars($website['domain']); ?>)</li>
+                    <li>Copy the full URL from your browser address bar</li>
+                    <li>Paste it below</li>
+                </ol>
             </div>
             
-            <div class="form-group" style="margin-top: 15px;">
-                <label>Quick Links</label>
-                <div class="quick-links">
-                    <a href="https://search.google.com/search-console?resource_id=sc-domain%3A<?php echo urlencode($website['domain']); ?>" target="_blank" class="quick-link-btn">🔍 Search Console</a>
-                    <a href="<?php echo htmlspecialchars($website['analytics_url'] ?? 'https://analytics.google.com/analytics/web/'); ?>" target="_blank" class="quick-link-btn">📊 Analytics</a>
-                </div>
+            <div class="form-group">
+                <label for="google_analytics_id">Google Analytics Measurement ID</label>
+                <input type="text" id="google_analytics_id" name="google_analytics_id" 
+                       value="<?php echo htmlspecialchars($website['google_analytics_id'] ?? ''); ?>" 
+                       placeholder="G-XXXXXXXXXX">
+                <small>Find in Google Analytics → Admin → Data Streams → Measurement ID</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="analytics_property_url">Analytics Property URL (for quick access)</label>
+                <input type="url" id="analytics_property_url" name="analytics_property_url" 
+                       value="<?php echo htmlspecialchars($website['analytics_property_url'] ?? ''); ?>" 
+                       placeholder="https://analytics.google.com/analytics/web/#/p123456789/reports/reportinghub">
+                <small>Paste the full URL when viewing this website's Analytics dashboard</small>
             </div>
         </div>
         
